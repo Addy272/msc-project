@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Admin Panel</h1>
+            <p class="subtitle">System Management Dashboard</p>
+            <nav>
+                <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                <a href="{{ url_for('dashboard', symbol=symbol) }}" class="nav-link">User Dashboard</a>
+                <a href="{{ url_for('admin_logout') }}" class="nav-link">Logout</a>
+                <select id="adminSymbol" onchange="changeAdminSymbol()">
+                    {% for stock in stocks %}
+                    <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
+                    {% endfor %}
+                </select>
+            </nav>
+        </header>
+
+        <main>
+            {% if message %}
+            <div class="status-message show info">{{ message }}</div>
+            {% endif %}
+
+            <div class="admin-grid">
+                <div class="admin-card">
+                    <h2>System Status</h2>
+                    <div class="admin-list">
+                        <div><strong>Total Stock Records:</strong> {{ total_stock }}</div>
+                        <div><strong>Total Sentiment Records:</strong> {{ total_sentiment }}</div>
+                        <div><strong>Total Metrics Records:</strong> {{ total_metrics }}</div>
+                        <div><strong>News API Key:</strong> {{ 'Configured' if news_key_set else 'Missing' }}</div>
+                        <div><strong>RF Model File:</strong> {{ 'Found' if rf_model_exists else 'Missing' }}</div>
+                        <div><strong>RF Scaler File:</strong> {{ 'Found' if rf_scaler_exists else 'Missing' }}</div>
+                        <div><strong>LSTM Model File:</strong> {{ 'Found' if lstm_model_exists else 'Missing' }}</div>
+                        <div><strong>LSTM Scaler File:</strong> {{ 'Found' if lstm_scaler_exists else 'Missing' }}</div>
+                        <div>
+                            <strong>Last Training:</strong>
+                            {% if latest_overall_metrics %}
+                            {{ latest_overall_metrics.training_date.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            Not yet trained
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Data Management ({{ symbol }})</h2>
+                    <div class="admin-list">
+                        <div><strong>Stock Records:</strong> {{ stock_count }}</div>
+                        <div><strong>Sentiment Records:</strong> {{ sentiment_count }}</div>
+                        <div><strong>Metrics Records:</strong> {{ metrics_count }}</div>
+                    </div>
+                    <div class="admin-actions">
+                        <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear stock data for {{ symbol }}?');">
+                            <input type="hidden" name="symbol" value="{{ symbol }}">
+                            <input type="hidden" name="action" value="stock">
+                            <button type="submit" class="btn btn-primary">Clear Stock Data</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear sentiment data for {{ symbol }}?');">
+                            <input type="hidden" name="symbol" value="{{ symbol }}">
+                            <input type="hidden" name="action" value="sentiment">
+                            <button type="submit" class="btn btn-info">Clear Sentiment Data</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear metrics data for {{ symbol }}?');">
+                            <input type="hidden" name="symbol" value="{{ symbol }}">
+                            <input type="hidden" name="action" value="metrics">
+                            <button type="submit" class="btn btn-success">Clear Metrics</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear ALL data for {{ symbol }}?');">
+                            <input type="hidden" name="symbol" value="{{ symbol }}">
+                            <input type="hidden" name="action" value="all">
+                            <button type="submit" class="btn btn-danger">Clear All Data</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Model Operations ({{ symbol }})</h2>
+                    <div class="button-group">
+                        <button onclick="adminFetchData()" class="btn btn-primary">Fetch Latest Data</button>
+                        <button onclick="adminTrainModels()" class="btn btn-success">Train Models</button>
+                        <button onclick="adminPredict()" class="btn btn-info">Make Prediction</button>
+                    </div>
+                    <div id="adminStatus" class="status-message"></div>
+                    <div id="adminPrediction" class="admin-prediction" style="display:none;">
+                        <h3>Latest Prediction</h3>
+                        <table class="admin-table">
+                            <tr>
+                                <td>Current Price</td>
+                                <td id="admin-current-price">--</td>
+                            </tr>
+                            <tr>
+                                <td>Random Forest</td>
+                                <td id="admin-rf-pred">--</td>
+                            </tr>
+                            <tr>
+                                <td>LSTM</td>
+                                <td id="admin-lstm-pred">--</td>
+                            </tr>
+                            <tr>
+                                <td>Ensemble</td>
+                                <td id="admin-ensemble-pred">--</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Latest Metrics ({{ symbol }})</h2>
+                    <div class="admin-metrics">
+                        <div class="admin-metric-block">
+                            <h3>Random Forest</h3>
+                            {% if latest_rf %}
+                            <table class="admin-table">
+                                <tr><td>RMSE</td><td>{{ '%.4f' | format(latest_rf.rmse or 0) }}</td></tr>
+                                <tr><td>MAE</td><td>{{ '%.4f' | format(latest_rf.mae or 0) }}</td></tr>
+                                <tr><td>R2</td><td>{{ '%.4f' | format(latest_rf.r2_score or 0) }}</td></tr>
+                                <tr><td>Trained</td><td>{{ latest_rf.training_date.strftime('%Y-%m-%d %H:%M:%S') }}</td></tr>
+                            </table>
+                            {% else %}
+                            <p>No Random Forest metrics found.</p>
+                            {% endif %}
+                        </div>
+                        <div class="admin-metric-block">
+                            <h3>LSTM</h3>
+                            {% if latest_lstm %}
+                            <table class="admin-table">
+                                <tr><td>RMSE</td><td>{{ '%.4f' | format(latest_lstm.rmse or 0) }}</td></tr>
+                                <tr><td>MAE</td><td>{{ '%.4f' | format(latest_lstm.mae or 0) }}</td></tr>
+                                <tr><td>R2</td><td>{{ '%.4f' | format(latest_lstm.r2_score or 0) }}</td></tr>
+                                <tr><td>Trained</td><td>{{ latest_lstm.training_date.strftime('%Y-%m-%d %H:%M:%S') }}</td></tr>
+                            </table>
+                            {% else %}
+                            <p>No LSTM metrics found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+
+    <script>
+        const ADMIN_SYMBOL = "{{ symbol }}";
+
+        function changeAdminSymbol() {
+            const symbol = document.getElementById('adminSymbol').value;
+            window.location.href = `/admin?symbol=${symbol}`;
+        }
+
+        function showAdminStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('adminStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message show ${type}`;
+            setTimeout(() => statusDiv.classList.remove('show'), 5000);
+        }
+
+        async function adminFetchData() {
+            showAdminStatus('Fetching latest data...', 'info');
+            try {
+                const response = await fetch('/api/fetch_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: ADMIN_SYMBOL })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showAdminStatus(`Fetched ${data.stock_records} stock records and ${data.sentiment_records} news articles.`, 'success');
+                } else {
+                    showAdminStatus(data.error || 'Failed to fetch data.', 'error');
+                }
+            } catch (error) {
+                showAdminStatus(error.message, 'error');
+            }
+        }
+
+        async function adminTrainModels() {
+            showAdminStatus('Training models... This may take a few minutes.', 'info');
+            try {
+                const response = await fetch('/api/train_models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: ADMIN_SYMBOL })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showAdminStatus('Models trained successfully.', 'success');
+                } else {
+                    showAdminStatus(data.error || 'Failed to train models.', 'error');
+                }
+            } catch (error) {
+                showAdminStatus(error.message, 'error');
+            }
+        }
+
+        async function adminPredict() {
+            showAdminStatus('Making prediction...', 'info');
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: ADMIN_SYMBOL })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('adminPrediction').style.display = 'block';
+                    document.getElementById('admin-current-price').textContent = `$${data.current_price.toFixed(2)}`;
+                    document.getElementById('admin-rf-pred').textContent = `$${data.predictions.random_forest.toFixed(2)} (${data.signals.random_forest})`;
+                    document.getElementById('admin-lstm-pred').textContent = `$${data.predictions.lstm.toFixed(2)} (${data.signals.lstm})`;
+                    document.getElementById('admin-ensemble-pred').textContent = `$${data.predictions.ensemble.toFixed(2)} (${data.signals.ensemble})`;
+                    showAdminStatus('Prediction complete.', 'success');
+                } else {
+                    showAdminStatus(data.error || 'Failed to make prediction.', 'error');
+                }
+            } catch (error) {
+                showAdminStatus(error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Stock Price Forecasting System</h1>
+            <p class="subtitle">Using Machine Learning and Sentiment Analysis</p>
+            <p class="university">MSc IT Project - University of Mumbai</p>
+            <nav>
+                <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="welcome-section">
+                <h2>Welcome to the Stock Price Prediction Platform</h2>
+                <p>
+                    This intelligent system combines machine learning algorithms and sentiment analysis 
+                    to forecast stock prices and generate informed trading signals.
+                </p>
+            </div>
+
+            <div class="system-summary">
+                <h2>System Snapshot</h2>
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <h3>Total Stock Records</h3>
+                        <p class="summary-value">{{ total_stock }}</p>
+                        <p class="summary-meta">Latest Date: {{ latest_stock_date or 'No data yet' }}</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Total Sentiment Records</h3>
+                        <p class="summary-value">{{ total_sentiment }}</p>
+                        <p class="summary-meta">Latest Training: {{ latest_training_date or 'Not trained yet' }}</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Total Model Metrics</h3>
+                        <p class="summary-value">{{ total_metrics }}</p>
+                        <p class="summary-meta">Models: Random Forest &amp; LSTM</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Historical Data Analysis</h3>
+                    <p>Access and analyze comprehensive historical stock market data from Yahoo Finance</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Machine Learning Models</h3>
+                    <p>Utilizes Random Forest and LSTM neural networks for accurate price predictions</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📰</div>
+                    <h3>Sentiment Analysis</h3>
+                    <p>Analyzes financial news headlines to gauge market sentiment using NLP</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💡</div>
+                    <h3>Trading Signals</h3>
+                    <p>Generates Buy/Sell/Hold recommendations based on model predictions</p>
+                </div>
+            </div>
+
+            <div class="stock-selection">
+                <h2>Select a Stock to Begin</h2>
+                <div class="stock-summary-grid">
+                    {% for item in stock_summary %}
+                    <div class="stock-summary-card">
+                        <a href="{{ url_for('dashboard', symbol=item.symbol) }}" class="stock-button">
+                            {{ item.symbol }}
+                        </a>
+                        <div class="stock-summary-meta">
+                            <div>Stock Records: {{ item.stock_count }}</div>
+                            <div>Sentiment Records: {{ item.sentiment_count }}</div>
+                            <div>Latest Price Date: {{ item.latest_date or 'No data' }}</div>
+                            <div>Last Training: {{ item.latest_training or 'Not trained' }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>How It Works</h2>
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>Data Collection</h3>
+                        <p>Fetch historical stock prices and recent financial news</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>Feature Engineering</h3>
+                        <p>Calculate technical indicators and perform sentiment analysis</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>Model Training</h3>
+                        <p>Train Random Forest and LSTM models on processed data</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <h3>Prediction & Signals</h3>
+                        <p>Generate price forecasts and actionable trading signals</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="disclaimer">
+                <h3>⚠️ Academic Disclaimer</h3>
+                <p>
+                    This system is developed for academic and educational purposes only. 
+                    It is not intended for real-money trading. Always consult with a licensed 
+                    financial advisor before making investment decisions.
+                </p>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+            <p>University of Mumbai</p>
+        </footer>
+    </div>
+</body>
+</html>

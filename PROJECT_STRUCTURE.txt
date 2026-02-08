@@ -1,0 +1,165 @@
+STOCK PRICE FORECASTING SYSTEM - PROJECT STRUCTURE
+MSc IT Project - University of Mumbai
+====================================================================
+
+stock_prediction_project/
+│
+├── README.md                           # Complete documentation (500+ lines)
+├── QUICKSTART.md                       # 5-minute setup guide
+├── VIVA_PREP.md                        # Viva preparation with Q&A
+├── DEPLOYMENT.md                       # Installation guide
+├── PROJECT_STRUCTURE.txt              # This file
+│
+├── app.py                             # Main Flask application
+├── config.py                          # Configuration settings
+├── requirements.txt                   # Python dependencies
+├── test_system.py                     # System verification script
+│
+├── data/                              # Data storage
+│   ├── raw/                           # Raw downloaded data
+│   │   └── README.md
+│   └── processed/                     # Processed features
+│       └── README.md
+│
+├── models/                            # Machine Learning models
+│   ├── __init__.py
+│   ├── random_forest.py              # Random Forest implementation
+│   └── lstm_model.py                 # LSTM neural network
+│
+├── sentiment/                         # Sentiment analysis
+│   ├── __init__.py
+│   └── sentiment_analysis.py         # NLP sentiment analyzer
+│
+├── database/                          # Database layer
+│   ├── __init__.py
+│   └── models.py                     # SQLAlchemy ORM models
+│
+├── templates/                         # HTML templates
+│   ├── index.html                    # Home page
+│   └── dashboard.html                # Dashboard page
+│
+├── static/                           # Static files
+│   ├── css/
+│   │   └── style.css                # Stylesheet (600+ lines)
+│   └── js/
+│       └── dashboard.js             # Dashboard JavaScript
+│
+└── utils/                            # Utility modules
+    ├── __init__.py
+    ├── data_loader.py               # Data fetching
+    └── feature_engineering.py       # Feature creation
+
+====================================================================
+TOTAL FILES: 24
+====================================================================
+
+KEY FILES DESCRIPTION:
+----------------------
+
+DOCUMENTATION (4 files):
+  README.md          - Complete technical documentation
+  QUICKSTART.md      - Quick setup guide (10 minutes)
+  VIVA_PREP.md       - Viva questions & answers
+  DEPLOYMENT.md      - Installation troubleshooting
+
+CORE APPLICATION (3 files):
+  app.py            - Flask web application with routes
+  config.py         - Configuration parameters
+  requirements.txt  - All dependencies
+
+MACHINE LEARNING (2 files):
+  random_forest.py  - Random Forest regressor
+  lstm_model.py     - LSTM neural network
+
+DATA PROCESSING (2 files):
+  data_loader.py        - Yahoo Finance & News API
+  feature_engineering.py - Technical indicators
+
+SENTIMENT ANALYSIS (1 file):
+  sentiment_analysis.py - TextBlob NLP
+
+DATABASE (1 file):
+  models.py         - 4 database tables (SQLAlchemy)
+
+WEB INTERFACE (4 files):
+  index.html        - Homepage
+  dashboard.html    - Main dashboard
+  style.css         - Styling
+  dashboard.js      - JavaScript functionality
+
+TESTING (1 file):
+  test_system.py    - Comprehensive tests
+
+PACKAGE FILES (4 files):
+  __init__.py files in each package directory
+
+DATA DIRECTORIES (2 folders):
+  data/raw/         - For raw stock data
+  data/processed/   - For processed features
+
+====================================================================
+
+HOW TO USE:
+-----------
+
+1. INSTALLATION:
+   pip install -r requirements.txt
+   python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
+2. VERIFICATION:
+   python test_system.py
+
+3. RUN:
+   python app.py
+
+4. ACCESS:
+   http://localhost:5000
+
+====================================================================
+
+FEATURES IMPLEMENTED:
+---------------------
+
+✓ Random Forest prediction
+✓ LSTM neural network
+✓ Sentiment analysis (TextBlob + financial keywords)
+✓ Technical indicators (MA, RSI, MACD, Bollinger Bands)
+✓ Trading signals (BUY/SELL/HOLD)
+✓ Interactive dashboard
+✓ Real-time data fetching
+✓ Model performance metrics
+✓ Interactive visualizations (Plotly)
+✓ SQLite database
+✓ Complete documentation
+✓ Viva preparation guide
+
+====================================================================
+
+TECHNOLOGIES USED:
+------------------
+
+Backend:       Python, Flask, SQLAlchemy
+ML Libraries:  Scikit-learn, TensorFlow/Keras
+NLP:           NLTK, TextBlob
+Data:          Pandas, NumPy, yfinance
+Visualization: Plotly, Matplotlib
+Frontend:      HTML5, CSS3, JavaScript
+Database:      SQLite
+
+====================================================================
+
+FOR ACADEMIC SUBMISSION:
+------------------------
+
+This project includes:
+✓ Complete source code
+✓ Comprehensive documentation
+✓ Testing suite
+✓ Installation guide
+✓ Viva preparation materials
+✓ Professional code quality
+✓ Academic-level implementation
+
+Ready for MSc IT project submission at University of Mumbai!
+
+====================================================================

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - {{ symbol }} Stock Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ symbol }} Stock Price Dashboard</h1>
+            <nav>
+                <a href="{{ url_for('index') }}" class="nav-link">← Back to Home</a>
+                <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                <select id="stockSelector" onchange="changeStock()">
+                    {% for stock in stocks %}
+                    <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
+                    {% endfor %}
+                </select>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <h2>Control Panel</h2>
+                <div class="button-group">
+                    <button onclick="fetchData()" class="btn btn-primary">
+                        📥 Fetch Latest Data
+                    </button>
+                    <button onclick="trainModels()" class="btn btn-success">
+                        🎓 Train Models
+                    </button>
+                    <button onclick="makePrediction()" class="btn btn-info">
+                        🔮 Make Prediction
+                    </button>
+                </div>
+                <div id="statusMessage" class="status-message"></div>
+            </div>
+
+            <!-- Prediction Results -->
+            <div class="prediction-section" id="predictionSection" style="display:none;">
+                <h2>Prediction Results</h2>
+                <div class="prediction-grid">
+                    <div class="prediction-card">
+                        <h3>Current Price</h3>
+                        <div class="price-display" id="currentPrice">--</div>
+                    </div>
+                    <div class="prediction-card">
+                        <h3>Random Forest</h3>
+                        <div class="price-display" id="rfPrediction">--</div>
+                        <div class="signal-badge" id="rfSignal">--</div>
+                    </div>
+                    <div class="prediction-card">
+                        <h3>LSTM</h3>
+                        <div class="price-display" id="lstmPrediction">--</div>
+                        <div class="signal-badge" id="lstmSignal">--</div>
+                    </div>
+                    <div class="prediction-card highlight">
+                        <h3>Ensemble</h3>
+                        <div class="price-display" id="ensemblePrediction">--</div>
+                        <div class="signal-badge" id="ensembleSignal">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Performance -->
+            <div class="metrics-section" id="metricsSection" style="display:none;">
+                <h2>Model Performance Metrics</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3>Random Forest</h3>
+                        <table class="metrics-table">
+                            <tr>
+                                <td>RMSE:</td>
+                                <td id="rf-rmse">--</td>
+                            </tr>
+                            <tr>
+                                <td>MAE:</td>
+                                <td id="rf-mae">--</td>
+                            </tr>
+                            <tr>
+                                <td>R² Score:</td>
+                                <td id="rf-r2">--</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="metric-card">
+                        <h3>LSTM</h3>
+                        <table class="metrics-table">
+                            <tr>
+                                <td>RMSE:</td>
+                                <td id="lstm-rmse">--</td>
+                            </tr>
+                            <tr>
+                                <td>MAE:</td>
+                                <td id="lstm-mae">--</td>
+                            </tr>
+                            <tr>
+                                <td>R² Score:</td>
+                                <td id="lstm-r2">--</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualizations -->
+            <div class="charts-section">
+                <h2>Visualizations</h2>
+                
+                <div class="chart-container">
+                    <h3>Stock Price History</h3>
+                    <div id="priceChart"></div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Trading Volume</h3>
+                    <div id="volumeChart"></div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Sentiment Analysis</h3>
+                    <div id="sentimentChart"></div>
+                </div>
+            </div>
+
+            <!-- Recent News -->
+            <div class="news-section" id="newsSection">
+                <h2>Recent Financial News & Sentiment</h2>
+                <div id="newsList"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script>
+        const CURRENT_SYMBOL = "{{ symbol }}";
+        
+        function changeStock() {
+            const symbol = document.getElementById('stockSelector').value;
+            window.location.href = `/dashboard?symbol=${symbol}`;
+        }
+
+        // Load initial data
+        window.addEventListener('load', function() {
+            loadStockData();
+            loadSentimentData();
+            loadModelMetrics();
+        });
+    </script>
+</body>
+</html>
