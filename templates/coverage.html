@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coverage | Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Coverage & Readiness</h1>
+            <p class="subtitle">Live snapshot of every symbol, its data depth, and model health.</p>
+            <nav>
+                <div class="nav-left">
+                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                    <a href="{{ url_for('about') }}" class="nav-link">About</a>
+                    <a href="{{ url_for('coverage') }}" class="nav-link active">Coverage</a>
+                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
+                </div>
+                <div class="nav-right">
+                    <a href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                </div>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <div>
+                    <p class="eyebrow">System health</p>
+                    <h2>Data coverage across {{ stocks|length }} symbols</h2>
+                    <p class="lede">
+                        Totals update in real time as you ingest news, retrain models, and grow the dataset.
+                        Use this view to spot where freshness or training is missing.
+                    </p>
+                    <div class="stat-row">
+                        <div class="stat-chip">
+                            <span class="label">Stock rows</span>
+                            <span class="value">{{ total_stock }}</span>
+                            <span class="note">Latest price: {{ latest_stock_date or 'No data' }}</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="label">Sentiment rows</span>
+                            <span class="value">{{ total_sentiment }}</span>
+                            <span class="note">Last training: {{ latest_training_date or 'Not trained' }}</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="label">Metric entries</span>
+                            <span class="value">{{ total_metrics }}</span>
+                            <span class="note">RF + LSTM snapshots</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Symbol coverage</p>
+                        <h3>Data depth and model readiness</h3>
+                    </div>
+                    <a class="btn btn-primary" href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}">Open dashboard</a>
+                </div>
+                <div class="table-wrap">
+                    <table class="coverage-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Stock rows</th>
+                                <th>Sentiment rows</th>
+                                <th>Last price</th>
+                                <th>RF metric (RMSE)</th>
+                                <th>LSTM metric (RMSE)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in stock_summary %}
+                            {% set metrics = metrics_by_symbol.get(item.symbol) if metrics_by_symbol else None %}
+                            <tr>
+                                <td class="symbol-cell">{{ item.symbol }}</td>
+                                <td>{{ item.stock_count }}</td>
+                                <td>{{ item.sentiment_count }}</td>
+                                <td>{{ item.latest_date or '—' }}</td>
+                                <td>
+                                    {% if metrics and metrics.rf %}
+                                        {{ '%.4f'|format(metrics.rf.rmse or 0) }}
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td>
+                                    {% if metrics and metrics.lstm %}
+                                        {{ '%.4f'|format(metrics.lstm.rmse or 0) }}
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td>
+                                    {% set has_data = item.stock_count > 0 %}
+                                    {% set has_metrics = metrics and (metrics.rf or metrics.lstm) %}
+                                    {% if has_data and has_metrics %}
+                                        <span class="badge success">Ready</span>
+                                    {% elif has_data %}
+                                        <span class="badge warning">Needs training</span>
+                                    {% else %}
+                                        <span class="badge muted">Fetch data</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="split">
+                <div class="card-lite">
+                    <p class="eyebrow">Operational tips</p>
+                    <h3>Keep models fresh</h3>
+                    <ul class="checklist">
+                        <li>Fetch latest news before each training run.</li>
+                        <li>Monitor RMSE drift across symbols after re-training.</li>
+                        <li>Use ensemble signal on dashboard for quick validation.</li>
+                    </ul>
+                </div>
+                <div class="card-lite">
+                    <p class="eyebrow">Admin shortcuts</p>
+                    <h3>Quick actions</h3>
+                    <div class="button-group">
+                        <a class="btn btn-primary" href="{{ url_for('admin_login') }}">Go to Admin</a>
+                        <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}">Dashboard</a>
+                    </div>
+                    <p class="muted">Use the Admin panel to clear data, retrain, and validate predictions.</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+</body>
+</html>

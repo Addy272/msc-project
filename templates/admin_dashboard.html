@@ -12,14 +12,21 @@
             <h1>Admin Panel</h1>
             <p class="subtitle">System Management Dashboard</p>
             <nav>
-                <a href="{{ url_for('index') }}" class="nav-link">Home</a>
-                <a href="{{ url_for('dashboard', symbol=symbol) }}" class="nav-link">User Dashboard</a>
-                <a href="{{ url_for('admin_logout') }}" class="nav-link">Logout</a>
-                <select id="adminSymbol" onchange="changeAdminSymbol()">
-                    {% for stock in stocks %}
-                    <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
-                    {% endfor %}
-                </select>
+                <div class="nav-left">
+                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                    <a href="{{ url_for('about') }}" class="nav-link">About</a>
+                    <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
+                    <a href="{{ url_for('dashboard', symbol=symbol) }}" class="nav-link">User Dashboard</a>
+                </div>
+                <div class="nav-right">
+                    <select id="adminSymbol" onchange="changeAdminSymbol()">
+                        {% for stock in stocks %}
+                        <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
+                        {% endfor %}
+                    </select>
+                    <a href="{{ url_for('admin_logout') }}" class="nav-link">Logout</a>
+                </div>
             </nav>
         </header>
 

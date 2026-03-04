@@ -36,6 +36,49 @@ rf_model = None
 lstm_model = None
 
 
+def get_system_snapshot(selected_symbol=None):
+    """Aggregate commonly used system stats and per-symbol summaries."""
+    symbols_in_db = [row[0] for row in db.session.query(StockData.symbol).distinct().all()]
+    symbols = sorted(set(symbols_in_db) | set(Config.STOCK_SYMBOLS))
+
+    total_stock = StockData.query.count()
+    total_sentiment = SentimentData.query.count()
+    total_metrics = ModelMetrics.query.count()
+
+    latest_stock_record = StockData.query.order_by(StockData.date.desc()).first()
+    latest_training_record = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
+
+    stock_summary = []
+    for sym in symbols:
+        stock_count = StockData.query.filter_by(symbol=sym).count()
+        sentiment_count = SentimentData.query.filter_by(symbol=sym).count()
+        latest_stock = StockData.query.filter_by(symbol=sym).order_by(StockData.date.desc()).first()
+        latest_metric = ModelMetrics.query.filter_by(symbol=sym).order_by(ModelMetrics.training_date.desc()).first()
+
+        stock_summary.append({
+            'symbol': sym,
+            'stock_count': stock_count,
+            'sentiment_count': sentiment_count,
+            'latest_date': latest_stock.date.strftime('%Y-%m-%d') if latest_stock else None,
+            'latest_training': latest_metric.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_metric else None
+        })
+
+    snapshot = {
+        'stocks': symbols,
+        'total_stock': total_stock,
+        'total_sentiment': total_sentiment,
+        'total_metrics': total_metrics,
+        'latest_stock_date': latest_stock_record.date.strftime('%Y-%m-%d') if latest_stock_record else None,
+        'latest_training_date': latest_training_record.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_training_record else None,
+        'stock_summary': stock_summary,
+    }
+
+    if selected_symbol:
+        snapshot['selected_symbol'] = selected_symbol
+
+    return snapshot
+
+
 def _safe_next_url(next_url):
     """Allow only relative next URLs to prevent open redirects."""
     if not next_url:
@@ -82,51 +125,57 @@ def require_login():
 @app.route('/')
 def index():
     """Home page"""
-    # Prefer symbols that actually exist in the database
-    db_symbols = [row[0] for row in db.session.query(StockData.symbol).distinct().all()]
-    symbols = sorted(db_symbols) if db_symbols else Config.STOCK_SYMBOLS
-
-    # Overall system stats
-    total_stock = StockData.query.count()
-    total_sentiment = SentimentData.query.count()
-    total_metrics = ModelMetrics.query.count()
-
-    latest_stock_record = StockData.query.order_by(StockData.date.desc()).first()
-    latest_training = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
-
-    # Per-symbol summary
-    stock_summary = []
-    for symbol in symbols:
-        stock_count = StockData.query.filter_by(symbol=symbol).count()
-        sentiment_count = SentimentData.query.filter_by(symbol=symbol).count()
-        latest_stock = StockData.query.filter_by(symbol=symbol).order_by(StockData.date.desc()).first()
-        latest_metric = ModelMetrics.query.filter_by(symbol=symbol).order_by(ModelMetrics.training_date.desc()).first()
-
-        stock_summary.append({
-            'symbol': symbol,
-            'stock_count': stock_count,
-            'sentiment_count': sentiment_count,
-            'latest_date': latest_stock.date.strftime('%Y-%m-%d') if latest_stock else None,
-            'latest_training': latest_metric.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_metric else None
-        })
-
-    return render_template(
-        'index.html',
-        stocks=symbols,
-        stock_summary=stock_summary,
-        total_stock=total_stock,
-        total_sentiment=total_sentiment,
-        total_metrics=total_metrics,
-        latest_stock_date=latest_stock_record.date.strftime('%Y-%m-%d') if latest_stock_record else None,
-        latest_training_date=latest_training.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_training else None
-    )
+    snapshot = get_system_snapshot()
+    return render_template('index.html', **snapshot)
 
 
 @app.route('/dashboard')
 def dashboard():
     """Main dashboard page"""
     symbol = request.args.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
-    return render_template('dashboard.html', symbol=symbol, stocks=Config.STOCK_SYMBOLS)
+    snapshot = get_system_snapshot()
+    return render_template('dashboard.html', symbol=symbol, stocks=snapshot['stocks'])
+
+
+@app.route('/about')
+def about():
+    """About page with system overview"""
+    snapshot = get_system_snapshot()
+    return render_template('about.html', **snapshot)
+
+
+@app.route('/coverage')
+def coverage():
+    """Coverage page summarizing symbols and model readiness"""
+    snapshot = get_system_snapshot()
+
+    def metric_dict(record):
+        if not record:
+            return None
+        return {
+            'rmse': record.rmse,
+            'mae': record.mae,
+            'r2': record.r2_score,
+            'trained_at': record.training_date.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+    metrics_by_symbol = {}
+    for sym in snapshot['stocks']:
+        latest_rf = ModelMetrics.query.filter_by(symbol=sym, model_type='RandomForest').order_by(ModelMetrics.training_date.desc()).first()
+        latest_lstm = ModelMetrics.query.filter_by(symbol=sym, model_type='LSTM').order_by(ModelMetrics.training_date.desc()).first()
+        metrics_by_symbol[sym] = {
+            'rf': metric_dict(latest_rf),
+            'lstm': metric_dict(latest_lstm)
+        }
+
+    return render_template('coverage.html', metrics_by_symbol=metrics_by_symbol, **snapshot)
+
+
+@app.route('/support')
+def support():
+    """Support page with guidance and quick links"""
+    snapshot = get_system_snapshot()
+    return render_template('support.html', **snapshot)
 
 
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -168,6 +217,8 @@ def admin_logout():
 def admin_dashboard():
     """Admin dashboard page"""
     symbol = request.args.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
+    snapshot = get_system_snapshot()
+    stocks = snapshot['stocks']
 
     latest_overall_metrics = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
     latest_rf = ModelMetrics.query.filter_by(
@@ -181,10 +232,6 @@ def admin_dashboard():
     sentiment_count = SentimentData.query.filter_by(symbol=symbol).count()
     metrics_count = ModelMetrics.query.filter_by(symbol=symbol).count()
 
-    total_stock = StockData.query.count()
-    total_sentiment = SentimentData.query.count()
-    total_metrics = ModelMetrics.query.count()
-
     news_key_set = bool(Config.NEWS_API_KEY and Config.NEWS_API_KEY != '658ab30b6eed4f879c8409f469d43689')
     rf_model_exists = os.path.exists(Config.RF_MODEL_PATH)
     rf_scaler_exists = os.path.exists(Config.RF_MODEL_PATH.replace('.pkl', '_scaler.pkl'))
@@ -196,13 +243,13 @@ def admin_dashboard():
     return render_template(
         'admin_dashboard.html',
         symbol=symbol,
-        stocks=Config.STOCK_SYMBOLS,
+        stocks=stocks,
         stock_count=stock_count,
         sentiment_count=sentiment_count,
         metrics_count=metrics_count,
-        total_stock=total_stock,
-        total_sentiment=total_sentiment,
-        total_metrics=total_metrics,
+        total_stock=snapshot['total_stock'],
+        total_sentiment=snapshot['total_sentiment'],
+        total_metrics=snapshot['total_metrics'],
         latest_rf=latest_rf,
         latest_lstm=latest_lstm,
         latest_overall_metrics=latest_overall_metrics,

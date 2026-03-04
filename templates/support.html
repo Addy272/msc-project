@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support | Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Support & Guidance</h1>
+            <p class="subtitle">Quick help, runbooks, and where to go next.</p>
+            <nav>
+                <div class="nav-left">
+                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                    <a href="{{ url_for('about') }}" class="nav-link">About</a>
+                    <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('support') }}" class="nav-link active">Support</a>
+                </div>
+                <div class="nav-right">
+                    <a href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                </div>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <div>
+                    <p class="eyebrow">Need help?</p>
+                    <h2>Operations quickstart and troubleshooting</h2>
+                    <p class="lede">
+                        Use these playbooks to fetch data, train models, and validate predictions.
+                        Stats below confirm the system is healthy before you run jobs.
+                    </p>
+                    <div class="button-group">
+                        <a class="btn btn-primary" href="{{ url_for('admin_login') }}">Open Admin</a>
+                        <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}">View Dashboard</a>
+                    </div>
+                </div>
+                <div class="stat-stack">
+                    <div class="stat-chip">
+                        <span class="label">Stock rows</span>
+                        <span class="value">{{ total_stock }}</span>
+                        <span class="note">Latest price: {{ latest_stock_date or 'No data' }}</span>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="label">Sentiment rows</span>
+                        <span class="value">{{ total_sentiment }}</span>
+                        <span class="note">Articles with scores</span>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="label">Model metrics</span>
+                        <span class="value">{{ total_metrics }}</span>
+                        <span class="note">Latest training: {{ latest_training_date or 'Not trained' }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Runbook</p>
+                        <h3>Standard operating steps</h3>
+                    </div>
+                </div>
+                <ol class="timeline">
+                    <li><span class="dot"></span><div><strong>Fetch data</strong><p>From Admin or Dashboard, run “Fetch Latest Data” for your symbol.</p></div></li>
+                    <li><span class="dot"></span><div><strong>Train models</strong><p>Trigger training; review RMSE/MAE in dashboard metrics or Admin snapshot.</p></div></li>
+                    <li><span class="dot"></span><div><strong>Make predictions</strong><p>Use “Make Prediction” to see RF, LSTM, and Ensemble signals.</p></div></li>
+                    <li><span class="dot"></span><div><strong>Review coverage</strong><p>Open Coverage to confirm rows and training timestamps per symbol.</p></div></li>
+                </ol>
+            </section>
+
+            <section class="split">
+                <div class="card-lite">
+                    <p class="eyebrow">FAQ</p>
+                    <div class="faq-item">
+                        <h4>Why do I see empty charts?</h4>
+                        <p>Fetch data first. If symbols are new, there may be no Yahoo Finance history or news available.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h4>Predictions return errors</h4>
+                        <p>Train both models. Missing scaler/model files often mean models were never saved.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h4>How do I reset a symbol?</h4>
+                        <p>Admin &rarr; Clear Data lets you wipe stock, sentiment, metrics, or all three for a symbol.</p>
+                    </div>
+                </div>
+                <div class="card-lite">
+                    <p class="eyebrow">Contact & credits</p>
+                    <ul class="contact-list">
+                        <li><span class="label">Maintainer</span><span class="value">MSc IT Project Team</span></li>
+                        <li><span class="label">Email</span><span class="value">support@example.edu</span></li>
+                        <li><span class="label">Docs</span><span class="value">See README.md for setup</span></li>
+                    </ul>
+                    <p class="muted">Built for academic use. Not investment advice.</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+</body>
+</html>

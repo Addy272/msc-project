@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About | Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>About The Platform</h1>
+            <p class="subtitle">Machine learning, sentiment, and explainable forecasting in one place.</p>
+            <nav>
+                <div class="nav-left">
+                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                    <a href="{{ url_for('about') }}" class="nav-link active">About</a>
+                    <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
+                </div>
+                <div class="nav-right">
+                    <a href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                </div>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <div>
+                    <p class="eyebrow">Academic Project · University of Mumbai</p>
+                    <h2>Data-rich forecasting with modern ML and sentiment</h2>
+                    <p class="lede">
+                        We pair historical price action with financial news sentiment to create explainable signals.
+                        Every model run, metric, and dataset is trackable so you can evaluate readiness quickly.
+                    </p>
+                    <div class="hero-cta">
+                        <a class="btn btn-primary" href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}">Open Dashboard</a>
+                        <a class="btn btn-ghost" href="{{ url_for('admin_login') }}">Go to Admin</a>
+                    </div>
+                </div>
+                <div class="stat-stack">
+                    <div class="stat-chip">
+                        <span class="label">Stock Records</span>
+                        <span class="value">{{ total_stock }}</span>
+                        <span class="note">Latest: {{ latest_stock_date or 'No data yet' }}</span>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="label">Sentiment Articles</span>
+                        <span class="value">{{ total_sentiment }}</span>
+                        <span class="note">Updated: {{ latest_training_date or 'Not trained yet' }}</span>
+                    </div>
+                    <div class="stat-chip">
+                        <span class="label">Model Metrics Logged</span>
+                        <span class="value">{{ total_metrics }}</span>
+                        <span class="note">Models: RF · LSTM</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="split">
+                <div>
+                    <h3>What we track</h3>
+                    <ul class="pill-list">
+                        <li class="pill">Daily OHLCV history</li>
+                        <li class="pill">Technical indicators</li>
+                        <li class="pill">News headlines & sentiment</li>
+                        <li class="pill">Model performance snapshots</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>How it works</h3>
+                    <ol class="timeline">
+                        <li><span class="dot"></span><div><strong>Ingest</strong><p>Fetches prices and news for tracked symbols.</p></div></li>
+                        <li><span class="dot"></span><div><strong>Engineer</strong><p>Builds indicators and merges sentiment streams.</p></div></li>
+                        <li><span class="dot"></span><div><strong>Train</strong><p>Random Forest and LSTM models log metrics every run.</p></div></li>
+                        <li><span class="dot"></span><div><strong>Predict</strong><p>Signals are surfaced as Buy / Sell / Hold guidance.</p></div></li>
+                    </ol>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Coverage Summary</p>
+                        <h3>Symbols we are monitoring</h3>
+                    </div>
+                    <a class="btn btn-ghost" href="{{ url_for('coverage') }}">See full coverage</a>
+                </div>
+                <div class="summary-grid compact">
+                    {% for item in stock_summary %}
+                    <div class="summary-card">
+                        <div class="summary-title">{{ item.symbol }}</div>
+                        <div class="summary-metrics">
+                            <div><span class="label">Stock rows</span><span class="value">{{ item.stock_count }}</span></div>
+                            <div><span class="label">Sentiment rows</span><span class="value">{{ item.sentiment_count }}</span></div>
+                            <div><span class="label">Last price date</span><span class="value">{{ item.latest_date or '—' }}</span></div>
+                            <div><span class="label">Last training</span><span class="value">{{ item.latest_training or '—' }}</span></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+</body>
+</html>
