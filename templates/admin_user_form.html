@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - Stock Price Forecasting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ heading }}</h1>
+            <p class="subtitle">{{ subtitle }}</p>
+            <nav>
+                <div class="nav-left">
+                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                    <a href="{{ url_for('about') }}" class="nav-link">About</a>
+                    <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
+                    {% if admin_logged_in %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link">Admin Panel</a>
+                    {% endif %}
+                </div>
+                <div class="nav-right">
+                    {% if admin_logged_in %}
+                    <a href="{{ url_for('admin_create_user') }}" class="nav-link">Create User</a>
+                    {% else %}
+                    <a href="{{ url_for('admin_login') }}" class="nav-link">Login</a>
+                    {% endif %}
+                </div>
+            </nav>
+        </header>
+
+        <main>
+            <div class="admin-page-grid">
+                <section class="admin-login-card admin-user-card">
+                    <h2>{{ heading }}</h2>
+                    <p class="admin-hint">{{ description }}</p>
+
+                    {% if error %}
+                    <div class="status-message show error">{{ error }}</div>
+                    {% endif %}
+
+                    {% if success %}
+                    <div class="status-message show success">{{ success }}</div>
+                    {% endif %}
+
+                    <form method="post" action="{{ form_action }}" class="admin-form">
+                        <label for="username">Username</label>
+                        <input id="username" name="username" type="text" required autocomplete="username" value="{{ request.form.get('username', '') }}">
+
+                        <label for="password">Password</label>
+                        <input id="password" name="password" type="password" required autocomplete="new-password">
+
+                        <label for="confirm_password">Confirm Password</label>
+                        <input id="confirm_password" name="confirm_password" type="password" required autocomplete="new-password">
+
+                        <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+                    </form>
+
+                    <div class="admin-form-links">
+                        {% if back_url %}
+                        <a href="{{ back_url }}" class="nav-link">Back to Admin</a>
+                        {% endif %}
+                        {% if secondary_url %}
+                        <a href="{{ secondary_url }}" class="nav-link">{{ secondary_label }}</a>
+                        {% endif %}
+                    </div>
+                </section>
+
+                {% if users %}
+                <section class="admin-card admin-user-list-card">
+                    <h2>Existing Admin Users</h2>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Last Login</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ 'Active' if user.is_active else 'Inactive' }}</td>
+                                    <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else 'Unknown' }}</td>
+                                    <td>{{ user.last_login_at.strftime('%Y-%m-%d %H:%M:%S') if user.last_login_at else 'Never' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+        </footer>
+    </div>
+</body>
+</html>

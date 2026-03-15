@@ -7,8 +7,78 @@ This module defines the database schema using SQLAlchemy ORM
 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
+
+
+class AdminUser(db.Model):
+    """Store admin users with hashed passwords."""
+    __tablename__ = 'admin_users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime)
+
+    def __repr__(self):
+        return f'<AdminUser {self.username}>'
+
+    @classmethod
+    def find_by_username(cls, username):
+        """Find an admin user by username, ignoring case."""
+        normalized_username = (username or '').strip()
+        if not normalized_username:
+            return None
+        return cls.query.filter(
+            db.func.lower(cls.username) == normalized_username.lower()
+        ).first()
+
+    def set_password(self, password):
+        """Hash and store a password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Validate a password against the stored hash."""
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, password)
+
+    def record_login(self):
+        """Track the latest login time for the admin user."""
+        self.last_login_at = datetime.utcnow()
+
+
+def seed_admin_user(username=None, password=None, sync_existing=False):
+    """Create or optionally sync an admin user from bootstrap credentials."""
+    normalized_username = (username or '').strip()
+    if not normalized_username or not password:
+        return None
+
+    existing_user = AdminUser.find_by_username(normalized_username)
+    if existing_user:
+        updated = False
+        if sync_existing and not existing_user.check_password(password):
+            existing_user.set_password(password)
+            updated = True
+        if sync_existing and not existing_user.is_active:
+            existing_user.is_active = True
+            updated = True
+        if updated:
+            db.session.commit()
+        return existing_user
+
+    if AdminUser.query.count() > 0 and not sync_existing:
+        return None
+
+    admin_user = AdminUser(username=normalized_username)
+    admin_user.set_password(password)
+    db.session.add(admin_user)
+    db.session.commit()
+    return admin_user
 
 class StockData(db.Model):
     """Store historical stock price data"""
@@ -187,4 +257,9 @@ def init_db(app):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        seed_admin_user(
+            app.config.get('BOOTSTRAP_ADMIN_USERNAME'),
+            app.config.get('BOOTSTRAP_ADMIN_PASSWORD'),
+            sync_existing=app.config.get('BOOTSTRAP_ADMIN_SYNC', False),
+        )
         print("Database initialized successfully!")

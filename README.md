@@ -136,6 +136,18 @@ NEWS_API_KEY = 'YOUR_NEWS_API_KEY_HERE'
 # Note: If you skip this, the system will use sample sentiment data
 ```
 
+### Step 5: Create an Admin User
+```bash
+# First-time setup: open /admin/signup in the browser to create the first admin
+
+# Or create/update an admin account from the command line
+python manage_admin.py --username admin
+
+# Optional: bootstrap the first admin from environment variables
+# BOOTSTRAP_ADMIN_USERNAME=admin
+# BOOTSTRAP_ADMIN_PASSWORD=your-strong-password
+```
+
 ---
 
 ## 🚀 Running the Application
@@ -150,6 +162,18 @@ cd stock_prediction_project
 # Run the Flask application
 python app.py
 ```
+
+### Demo Hosting on Windows
+
+```bash
+# Install/update dependencies
+pip install -r requirements.txt
+
+# Start a Windows-friendly demo server
+host_demo.bat
+```
+
+Then open `http://localhost:5000` in your browser. See `HOSTING_GUIDE.md` for LAN and public-link options.
 
 ### Method 2: Using Python Directly
 

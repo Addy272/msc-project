@@ -531,14 +531,74 @@ main {
 .sentiment-neutral { color: #fde68a; }
 
 /* Admin */
-.admin-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
+.admin-grid {
+    align-items: start;
 }
 
-.admin-actions form { margin: 0; }
+.admin-dashboard-card {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%;
+}
+
+.admin-dashboard-card h2,
+.admin-dashboard-card h3 {
+    margin: 0;
+    line-height: 1.2;
+}
+
+.admin-list {
+    display: grid;
+    gap: 10px;
+}
+
+.admin-list > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    line-height: 1.4;
+}
+
+.admin-list strong {
+    flex-shrink: 0;
+}
+
+.admin-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.admin-actions form {
+    margin: 0;
+}
+
+.admin-actions .btn,
+.admin-dashboard-card .button-group .btn {
+    width: 100%;
+    text-align: center;
+}
+
+.admin-dashboard-card .button-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.admin-page-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 460px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
 
 .admin-login-card {
     max-width: 420px;
@@ -548,6 +608,11 @@ main {
     border-radius: 14px;
     padding: 20px;
     box-shadow: var(--shadow);
+}
+
+.admin-user-card {
+    max-width: 100%;
+    width: 100%;
 }
 
 .admin-form {
@@ -562,6 +627,26 @@ main {
     color: var(--white);
     padding: 10px;
     border-radius: 10px;
+}
+
+.admin-form-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.admin-user-list-card {
+    text-align: left;
+}
+
+.admin-table th {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    color: var(--muted);
+    font-weight: 700;
+    background: rgba(255,255,255,0.02);
 }
 
 .admin-table td:first-child { color: var(--muted); }
@@ -615,4 +700,5 @@ footer {
     nav { flex-direction: column; align-items: flex-start; }
     .nav-left, .nav-right { flex-wrap: wrap; }
     .panel-head { flex-direction: column; align-items: flex-start; }
+    .admin-page-grid { grid-template-columns: 1fr; }
 }

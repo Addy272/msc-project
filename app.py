@@ -17,7 +17,15 @@ import sys
 
 # Import project modules
 from config import Config
-from database.models import db, init_db, StockData, SentimentData, PredictionData, ModelMetrics
+from database.models import (
+    db,
+    init_db,
+    AdminUser,
+    StockData,
+    SentimentData,
+    PredictionData,
+    ModelMetrics,
+)
 from utils.data_loader import StockDataLoader, NewsDataLoader, get_company_name
 from utils.feature_engineering import FeatureEngineer
 from sentiment.sentiment_analysis import SentimentAnalyzer
@@ -27,6 +35,7 @@ from models.lstm_model import LSTMModel
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+Config.init_app(app)
 
 # Initialize database
 init_db(app)
@@ -79,6 +88,11 @@ def get_system_snapshot(selected_symbol=None):
     return snapshot
 
 
+def has_admin_users():
+    """Return True when at least one admin user exists."""
+    return db.session.query(AdminUser.id).first() is not None
+
+
 def _safe_next_url(next_url):
     """Allow only relative next URLs to prevent open redirects."""
     if not next_url:
@@ -88,11 +102,63 @@ def _safe_next_url(next_url):
     return None
 
 
+def _clear_admin_session():
+    """Clear all login-related session keys."""
+    session.pop('logged_in', None)
+    session.pop('admin_logged_in', None)
+    session.pop('admin_username', None)
+
+
+def get_current_admin_user():
+    """Fetch the logged-in admin user and invalidate stale sessions."""
+    username = session.get('admin_username')
+    if not username:
+        return None
+
+    admin_user = AdminUser.find_by_username(username)
+    if admin_user and admin_user.is_active:
+        return admin_user
+
+    _clear_admin_session()
+    return None
+
+
+def _set_admin_session(admin_user):
+    """Persist the authenticated admin user in session storage."""
+    admin_user.record_login()
+    db.session.commit()
+    session['logged_in'] = True
+    session['admin_logged_in'] = True
+    session['admin_username'] = admin_user.username
+
+
+def _validate_admin_form(username, password, confirm_password):
+    """Validate sign-up and create-user form fields."""
+    normalized_username = (username or '').strip()
+
+    if not normalized_username:
+        return None, 'Username is required.'
+    if len(normalized_username) < 3:
+        return None, 'Username must be at least 3 characters long.'
+    if not password:
+        return None, 'Password is required.'
+    if len(password) < 8:
+        return None, 'Password must be at least 8 characters long.'
+    if password != confirm_password:
+        return None, 'Password and confirm password must match.'
+    if AdminUser.find_by_username(normalized_username):
+        return None, 'That username is already in use.'
+
+    return normalized_username, None
+
+
 def admin_required(view_func):
     """Decorator to protect admin routes."""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
-        if not session.get('admin_logged_in'):
+        if not has_admin_users():
+            return redirect(url_for('admin_signup', next=request.path))
+        if get_current_admin_user() is None:
             return redirect(url_for('admin_login', next=request.path))
         return view_func(*args, **kwargs)
     return wrapper
@@ -111,10 +177,15 @@ def require_login():
     if request.endpoint == 'static':
         return None
 
-    if request.endpoint in {'admin_login'}:
+    if request.endpoint in {'admin_login', 'admin_signup'}:
         return None
 
-    if not session.get('logged_in'):
+    if not has_admin_users():
+        if _is_api_request():
+            return jsonify({'error': 'Initial admin setup required'}), 503
+        return redirect(url_for('admin_signup', next=request.path))
+
+    if get_current_admin_user() is None:
         if _is_api_request():
             return jsonify({'error': 'Authentication required'}), 401
         return redirect(url_for('admin_login', next=request.path))
@@ -181,19 +252,22 @@ def support():
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     """Admin login page"""
-    if session.get('logged_in'):
+    if not has_admin_users():
         next_url = _safe_next_url(request.args.get('next'))
-        return redirect(next_url or url_for('index'))
+        return redirect(url_for('admin_signup', next=next_url))
+
+    if get_current_admin_user() is not None:
+        next_url = _safe_next_url(request.args.get('next'))
+        return redirect(next_url or url_for('admin_dashboard'))
 
     error = None
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        admin_user = AdminUser.find_by_username(username)
 
-        if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
-            session['logged_in'] = True
-            session['admin_logged_in'] = True
-            session['admin_username'] = username
+        if admin_user and admin_user.is_active and admin_user.check_password(password):
+            _set_admin_session(admin_user)
             next_url = _safe_next_url(request.args.get('next'))
             return redirect(next_url or url_for('index'))
 
@@ -202,13 +276,94 @@ def admin_login():
     return render_template('admin_login.html', error=error)
 
 
+@app.route('/admin/signup', methods=['GET', 'POST'])
+def admin_signup():
+    """Create the first admin user through the web UI."""
+    next_url = _safe_next_url(request.args.get('next'))
+
+    if has_admin_users():
+        if get_current_admin_user() is not None:
+            return redirect(url_for('admin_create_user'))
+        return redirect(url_for('admin_login', next=next_url))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        normalized_username, error = _validate_admin_form(username, password, confirm_password)
+        if error is None:
+            admin_user = AdminUser(username=normalized_username, is_active=True)
+            admin_user.set_password(password)
+            db.session.add(admin_user)
+            db.session.commit()
+            _set_admin_session(admin_user)
+            return redirect(next_url or url_for('admin_dashboard'))
+
+    return render_template(
+        'admin_user_form.html',
+        page_title='Create First Admin',
+        heading='Create First Admin',
+        subtitle='Set up the first login for this project.',
+        submit_label='Create Account',
+        description='This one-time sign-up page appears only until the first admin account is created.',
+        error=error,
+        success=None,
+        admin_logged_in=False,
+        form_action=url_for('admin_signup', next=next_url),
+        back_url=None,
+        secondary_url=url_for('index'),
+        secondary_label='Back to Home',
+        users=[],
+    )
+
+
+@app.route('/admin/users/create', methods=['GET', 'POST'])
+@admin_required
+def admin_create_user():
+    """Create additional admin users from the web UI."""
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        normalized_username, error = _validate_admin_form(username, password, confirm_password)
+        if error is None:
+            admin_user = AdminUser(username=normalized_username, is_active=True)
+            admin_user.set_password(password)
+            db.session.add(admin_user)
+            db.session.commit()
+            success = f"Admin user '{admin_user.username}' created successfully."
+
+    users = AdminUser.query.order_by(AdminUser.created_at.asc(), AdminUser.id.asc()).all()
+
+    return render_template(
+        'admin_user_form.html',
+        page_title='Create Admin User',
+        heading='Create Admin User',
+        subtitle='Add another account that can sign in to the admin panel.',
+        submit_label='Create User',
+        description='Passwords are stored as secure hashes in the database and are never shown again after creation.',
+        error=error,
+        success=success,
+        admin_logged_in=True,
+        form_action=url_for('admin_create_user'),
+        back_url=url_for('admin_dashboard'),
+        secondary_url=url_for('admin_logout'),
+        secondary_label='Logout',
+        users=users,
+    )
+
+
 @app.route('/admin/logout')
 @admin_required
 def admin_logout():
     """Admin logout"""
-    session.pop('logged_in', None)
-    session.pop('admin_logged_in', None)
-    session.pop('admin_username', None)
+    _clear_admin_session()
     return redirect(url_for('admin_login'))
 
 
@@ -219,6 +374,7 @@ def admin_dashboard():
     symbol = request.args.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
     snapshot = get_system_snapshot()
     stocks = snapshot['stocks']
+    admin_user_count = AdminUser.query.count()
 
     latest_overall_metrics = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
     latest_rf = ModelMetrics.query.filter_by(
@@ -247,6 +403,7 @@ def admin_dashboard():
         stock_count=stock_count,
         sentiment_count=sentiment_count,
         metrics_count=metrics_count,
+        admin_user_count=admin_user_count,
         total_stock=snapshot['total_stock'],
         total_sentiment=snapshot['total_sentiment'],
         total_metrics=snapshot['total_metrics'],
@@ -678,10 +835,9 @@ def get_model_metrics(symbol):
 
 
 if __name__ == '__main__':
-    # Create necessary directories
-    os.makedirs(Config.DATA_RAW_PATH, exist_ok=True)
-    os.makedirs(Config.DATA_PROCESSED_PATH, exist_ok=True)
-    os.makedirs(Config.MODELS_PATH, exist_ok=True)
-    
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', '5000'))
+    debug = os.environ.get('FLASK_DEBUG', '1').lower() in {'1', 'true', 'yes'}
+
     # Run the app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=debug, host=host, port=port)

@@ -25,6 +25,7 @@
                         <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
                         {% endfor %}
                     </select>
+                    <a href="{{ url_for('admin_create_user') }}" class="nav-link">Create User</a>
                     <a href="{{ url_for('admin_logout') }}" class="nav-link">Logout</a>
                 </div>
             </nav>
@@ -36,12 +37,13 @@
             {% endif %}
 
             <div class="admin-grid">
-                <div class="admin-card">
+                <div class="admin-card admin-dashboard-card">
                     <h2>System Status</h2>
                     <div class="admin-list">
                         <div><strong>Total Stock Records:</strong> {{ total_stock }}</div>
                         <div><strong>Total Sentiment Records:</strong> {{ total_sentiment }}</div>
                         <div><strong>Total Metrics Records:</strong> {{ total_metrics }}</div>
+                        <div><strong>Admin Users:</strong> {{ admin_user_count }}</div>
                         <div><strong>News API Key:</strong> {{ 'Configured' if news_key_set else 'Missing' }}</div>
                         <div><strong>RF Model File:</strong> {{ 'Found' if rf_model_exists else 'Missing' }}</div>
                         <div><strong>RF Scaler File:</strong> {{ 'Found' if rf_scaler_exists else 'Missing' }}</div>
@@ -58,7 +60,7 @@
                     </div>
                 </div>
 
-                <div class="admin-card">
+                <div class="admin-card admin-dashboard-card">
                     <h2>Data Management ({{ symbol }})</h2>
                     <div class="admin-list">
                         <div><strong>Stock Records:</strong> {{ stock_count }}</div>
@@ -89,7 +91,7 @@
                     </div>
                 </div>
 
-                <div class="admin-card">
+                <div class="admin-card admin-dashboard-card">
                     <h2>Model Operations ({{ symbol }})</h2>
                     <div class="button-group">
                         <button onclick="adminFetchData()" class="btn btn-primary">Fetch Latest Data</button>
@@ -120,7 +122,7 @@
                     </div>
                 </div>
 
-                <div class="admin-card">
+                <div class="admin-card admin-dashboard-card">
                     <h2>Latest Metrics ({{ symbol }})</h2>
                     <div class="admin-metrics">
                         <div class="admin-metric-block">

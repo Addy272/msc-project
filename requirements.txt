@@ -1,6 +1,8 @@
 # Core Web Framework
 Flask==3.0.0
 Flask-SQLAlchemy==3.1.1
+gunicorn==23.0.0
+waitress==3.0.2
 
 # Data Processing
 pandas==2.1.4
