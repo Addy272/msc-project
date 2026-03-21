@@ -16,6 +16,7 @@
                     <a href="{{ url_for('index') }}" class="nav-link">Home</a>
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
                     <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                     <a href="{{ url_for('dashboard', symbol=symbol) }}" class="nav-link">User Dashboard</a>
                 </div>
@@ -25,7 +26,6 @@
                         <option value="{{ stock }}" {% if stock == symbol %}selected{% endif %}>{{ stock }}</option>
                         {% endfor %}
                     </select>
-                    <a href="{{ url_for('admin_create_user') }}" class="nav-link">Create User</a>
                     <a href="{{ url_for('admin_logout') }}" class="nav-link">Logout</a>
                 </div>
             </nav>
@@ -58,15 +58,24 @@
                             {% endif %}
                         </div>
                     </div>
+                    <form method="post" action="{{ url_for('admin_reset_all_data') }}" onsubmit="return confirm('Delete uploaded contract file, all stock data, all sentiment data, all prediction data, all metrics, and saved model files for every scrip?');">
+                        <button type="submit" class="btn btn-danger">Reset Entire System Data</button>
+                    </form>
+                    <p class="section-note">
+                        This clears uploaded contract data and all stored records for every scrip. Admin login stays intact.
+                    </p>
                 </div>
 
                 <div class="admin-card admin-dashboard-card">
-                    <h2>Data Management ({{ symbol }})</h2>
+                    <h2>Clear Data ({{ symbol or 'No symbol selected' }})</h2>
                     <div class="admin-list">
                         <div><strong>Stock Records:</strong> {{ stock_count }}</div>
                         <div><strong>Sentiment Records:</strong> {{ sentiment_count }}</div>
                         <div><strong>Metrics Records:</strong> {{ metrics_count }}</div>
                     </div>
+                    <p class="section-note">
+                        Use these buttons to clear the current symbol only. For all scrips, use "Reset Entire System Data" above.
+                    </p>
                     <div class="admin-actions">
                         <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear stock data for {{ symbol }}?');">
                             <input type="hidden" name="symbol" value="{{ symbol }}">
@@ -225,10 +234,10 @@
                 const data = await response.json();
                 if (data.success) {
                     document.getElementById('adminPrediction').style.display = 'block';
-                    document.getElementById('admin-current-price').textContent = `$${data.current_price.toFixed(2)}`;
-                    document.getElementById('admin-rf-pred').textContent = `$${data.predictions.random_forest.toFixed(2)} (${data.signals.random_forest})`;
-                    document.getElementById('admin-lstm-pred').textContent = `$${data.predictions.lstm.toFixed(2)} (${data.signals.lstm})`;
-                    document.getElementById('admin-ensemble-pred').textContent = `$${data.predictions.ensemble.toFixed(2)} (${data.signals.ensemble})`;
+                    document.getElementById('admin-current-price').textContent = formatInr(data.current_price);
+                    document.getElementById('admin-rf-pred').textContent = `${formatInr(data.predictions.random_forest)} (${data.signals.random_forest})`;
+                    document.getElementById('admin-lstm-pred').textContent = `${formatInr(data.predictions.lstm)} (${data.signals.lstm})`;
+                    document.getElementById('admin-ensemble-pred').textContent = `${formatInr(data.predictions.ensemble)} (${data.signals.ensemble})`;
                     showAdminStatus('Prediction complete.', 'success');
                 } else {
                     showAdminStatus(data.error || 'Failed to make prediction.', 'error');
@@ -236,6 +245,14 @@
             } catch (error) {
                 showAdminStatus(error.message, 'error');
             }
+        }
+
+        function formatInr(value) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            }).format(value);
         }
     </script>
 </body>

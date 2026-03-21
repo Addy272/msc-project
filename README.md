@@ -591,8 +591,12 @@ Potential improvements for future versions:
 9. Email/SMS alerts
 10. Advanced visualization (candlestick charts)
 
+
+# link for downloading contract file.
+https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv
 ---
 
 **END OF README**
-#   m s c - p r o j e c t  
+#   m s c - p r o j e c t 
+ 
  

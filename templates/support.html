@@ -16,11 +16,12 @@
                     <a href="{{ url_for('index') }}" class="nav-link">Home</a>
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
                     <a href="{{ url_for('support') }}" class="nav-link active">Support</a>
                 </div>
                 <div class="nav-right">
-                    <a href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}" class="nav-link">Dashboard</a>
-                    <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                    <a href="{{ url_for('dashboard', symbol=default_symbol) }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link">Admin Panel</a>
                 </div>
             </nav>
         </header>
@@ -35,8 +36,8 @@
                         Stats below confirm the system is healthy before you run jobs.
                     </p>
                     <div class="button-group">
-                        <a class="btn btn-primary" href="{{ url_for('admin_login') }}">Open Admin</a>
-                        <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=stocks[0] if stocks else 'AAPL') }}">View Dashboard</a>
+                        <a class="btn btn-primary" href="{{ url_for('admin_dashboard') }}">Open Admin</a>
+                        <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=default_symbol) }}">View Dashboard</a>
                     </div>
                 </div>
                 <div class="stat-stack">

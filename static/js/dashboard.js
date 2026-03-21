@@ -1,6 +1,16 @@
 // Dashboard JavaScript Functions
 // MSc IT Project - Stock Price Forecasting System
 
+const inrFormatter = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2
+});
+
+function formatInr(value) {
+    return inrFormatter.format(value);
+}
+
 // Show status message
 function showStatus(message, type = 'info') {
     const statusDiv = document.getElementById('statusMessage');
@@ -105,22 +115,22 @@ async function makePrediction() {
 // Display predictions
 function displayPredictions(data) {
     // Current price
-    document.getElementById('currentPrice').textContent = `$${data.current_price.toFixed(2)}`;
+    document.getElementById('currentPrice').textContent = formatInr(data.current_price);
     
     // Random Forest
-    document.getElementById('rfPrediction').textContent = `$${data.predictions.random_forest.toFixed(2)}`;
+    document.getElementById('rfPrediction').textContent = formatInr(data.predictions.random_forest);
     const rfSignal = document.getElementById('rfSignal');
     rfSignal.textContent = data.signals.random_forest;
     rfSignal.className = `signal-badge ${data.signals.random_forest.toLowerCase()}`;
     
     // LSTM
-    document.getElementById('lstmPrediction').textContent = `$${data.predictions.lstm.toFixed(2)}`;
+    document.getElementById('lstmPrediction').textContent = formatInr(data.predictions.lstm);
     const lstmSignal = document.getElementById('lstmSignal');
     lstmSignal.textContent = data.signals.lstm;
     lstmSignal.className = `signal-badge ${data.signals.lstm.toLowerCase()}`;
     
     // Ensemble
-    document.getElementById('ensemblePrediction').textContent = `$${data.predictions.ensemble.toFixed(2)}`;
+    document.getElementById('ensemblePrediction').textContent = formatInr(data.predictions.ensemble);
     const ensembleSignal = document.getElementById('ensembleSignal');
     ensembleSignal.textContent = data.signals.ensemble;
     ensembleSignal.className = `signal-badge ${data.signals.ensemble.toLowerCase()}`;
@@ -163,7 +173,7 @@ async function loadStockData() {
             const priceLayout = {
                 title: `${CURRENT_SYMBOL} Stock Price`,
                 xaxis: { title: 'Date' },
-                yaxis: { title: 'Price ($)' },
+                yaxis: { title: 'Price (INR)' },
                 hovermode: 'x unified'
             };
             

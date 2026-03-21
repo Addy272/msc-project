@@ -33,8 +33,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Data Collection Parameters
-    DEFAULT_STOCK_SYMBOL = 'AAPL'  # Default stock for demonstration
-    STOCK_SYMBOLS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'WMT']
+    DEFAULT_STOCK_SYMBOL = ''
+    STOCK_SYMBOLS = []
     
     # Historical data period
     START_DATE = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')  # 2 years
@@ -56,6 +56,8 @@ class Config:
         os.environ.get('ADMIN_PASSWORD')
     )
     BOOTSTRAP_ADMIN_SYNC = _as_bool(os.environ.get('BOOTSTRAP_ADMIN_SYNC'))
+    ADMIN_USERNAME = BOOTSTRAP_ADMIN_USERNAME or 'admin'
+    ADMIN_PASSWORD = BOOTSTRAP_ADMIN_PASSWORD or 'admin12345'
     
     # Model Parameters
     RANDOM_FOREST_PARAMS = {
@@ -90,7 +92,10 @@ class Config:
     # File Paths
     DATA_RAW_PATH = os.path.join(STORAGE_ROOT, 'data', 'raw')
     DATA_PROCESSED_PATH = os.path.join(STORAGE_ROOT, 'data', 'processed')
+    DATA_CONTRACTS_PATH = os.path.join(STORAGE_ROOT, 'data', 'contracts')
     MODELS_PATH = os.path.join(STORAGE_ROOT, 'models')
+    CONTRACT_SYMBOLS_PATH = os.path.join(DATA_CONTRACTS_PATH, 'nse_contracts_latest.csv')
+    CONTRACT_METADATA_PATH = os.path.join(DATA_CONTRACTS_PATH, 'nse_contracts_latest.json')
     
     # Model Save Paths
     RF_MODEL_PATH = os.path.join(MODELS_PATH, 'random_forest_model.pkl')
@@ -146,6 +151,7 @@ class Config:
             storage_root,
             app.config.get('DATA_RAW_PATH'),
             app.config.get('DATA_PROCESSED_PATH'),
+            app.config.get('DATA_CONTRACTS_PATH'),
             app.config.get('MODELS_PATH'),
         ):
             if path:

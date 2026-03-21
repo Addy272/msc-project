@@ -1,13 +1,14 @@
 """
 Flask Web Application for Stock Price Forecasting
-MSc IT Project - University of Mumbai
+
 
 Main application file that handles routes and API endpoints
 """
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, has_app_context
 from functools import wraps
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -17,17 +18,10 @@ import sys
 
 # Import project modules
 from config import Config
-from database.models import (
-    db,
-    init_db,
-    AdminUser,
-    StockData,
-    SentimentData,
-    PredictionData,
-    ModelMetrics,
-)
+from database.models import db, init_db, StockData, SentimentData, PredictionData, ModelMetrics
 from utils.data_loader import StockDataLoader, NewsDataLoader, get_company_name
 from utils.feature_engineering import FeatureEngineer
+from utils.symbol_catalog import clear_uploaded_contract, get_symbol_catalog, save_uploaded_contract
 from sentiment.sentiment_analysis import SentimentAnalyzer
 from models.random_forest import RandomForestModel, generate_trading_signals
 from models.lstm_model import LSTMModel
@@ -43,12 +37,82 @@ init_db(app)
 # Global variables for models
 rf_model = None
 lstm_model = None
+CONTRACT_SOURCE_URL = 'https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv'
 
 
-def get_system_snapshot(selected_symbol=None):
+def _format_catalog_timestamp(value):
+    """Format upload timestamps for display."""
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value).strftime('%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return value
+
+
+def get_symbol_catalog_snapshot():
+    """Build the active symbol catalog, including database-only symbols."""
+    if not has_app_context():
+        with app.app_context():
+            return get_symbol_catalog_snapshot()
+
+    catalog = get_symbol_catalog()
+
+    base_records = []
+    seen_symbols = set()
+    for record in catalog['records']:
+        symbol = record['symbol']
+        if symbol in seen_symbols:
+            continue
+        base_records.append(dict(record))
+        seen_symbols.add(symbol)
+
+    db_symbols = set()
+    for model in (StockData, SentimentData, ModelMetrics):
+        db_symbols.update(row[0] for row in db.session.query(model.symbol).distinct().all())
+
+    available_records = list(base_records)
+    extra_symbols = sorted(db_symbols - seen_symbols)
+    for symbol in extra_symbols:
+        available_records.append({
+            'symbol': symbol,
+            'company_name': get_company_name(symbol),
+            'series': None,
+            'source': 'database',
+        })
+
+    symbols = [record['symbol'] for record in available_records]
+    default_symbol = Config.DEFAULT_STOCK_SYMBOL
+    if default_symbol not in symbols and symbols:
+        default_symbol = symbols[0]
+
+    catalog.update({
+        'catalog_records': base_records,
+        'available_records': available_records,
+        'symbols': symbols,
+        'default_symbol': default_symbol,
+        'preview_records': available_records[:12],
+        'source_symbol_count': len(base_records),
+        'extra_db_symbol_count': len(extra_symbols),
+        'uploaded_at_display': _format_catalog_timestamp(catalog.get('uploaded_at')),
+        'contract_source_url': CONTRACT_SOURCE_URL,
+    })
+    return catalog
+
+
+def resolve_selected_symbol(requested_symbol, available_symbols, default_symbol):
+    """Return a safe symbol from the active list."""
+    normalized_symbol = (requested_symbol or '').strip().upper()
+    if normalized_symbol and normalized_symbol in available_symbols:
+        return normalized_symbol
+    return default_symbol
+
+
+def get_system_snapshot(selected_symbol=None, catalog=None):
     """Aggregate commonly used system stats and per-symbol summaries."""
-    symbols_in_db = [row[0] for row in db.session.query(StockData.symbol).distinct().all()]
-    symbols = sorted(set(symbols_in_db) | set(Config.STOCK_SYMBOLS))
+    catalog = catalog or get_symbol_catalog_snapshot()
+    symbols = catalog['symbols']
 
     total_stock = StockData.query.count()
     total_sentiment = SentimentData.query.count()
@@ -57,40 +121,68 @@ def get_system_snapshot(selected_symbol=None):
     latest_stock_record = StockData.query.order_by(StockData.date.desc()).first()
     latest_training_record = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
 
+    stock_counts = dict(
+        db.session.query(StockData.symbol, db.func.count(StockData.id))
+        .group_by(StockData.symbol)
+        .all()
+    )
+    sentiment_counts = dict(
+        db.session.query(SentimentData.symbol, db.func.count(SentimentData.id))
+        .group_by(SentimentData.symbol)
+        .all()
+    )
+    latest_stock_dates = dict(
+        db.session.query(StockData.symbol, db.func.max(StockData.date))
+        .group_by(StockData.symbol)
+        .all()
+    )
+    latest_metric_dates = dict(
+        db.session.query(ModelMetrics.symbol, db.func.max(ModelMetrics.training_date))
+        .group_by(ModelMetrics.symbol)
+        .all()
+    )
+
     stock_summary = []
-    for sym in symbols:
-        stock_count = StockData.query.filter_by(symbol=sym).count()
-        sentiment_count = SentimentData.query.filter_by(symbol=sym).count()
-        latest_stock = StockData.query.filter_by(symbol=sym).order_by(StockData.date.desc()).first()
-        latest_metric = ModelMetrics.query.filter_by(symbol=sym).order_by(ModelMetrics.training_date.desc()).first()
+    for record in catalog['available_records']:
+        symbol = record['symbol']
+        latest_stock = latest_stock_dates.get(symbol)
+        latest_metric = latest_metric_dates.get(symbol)
 
         stock_summary.append({
-            'symbol': sym,
-            'stock_count': stock_count,
-            'sentiment_count': sentiment_count,
-            'latest_date': latest_stock.date.strftime('%Y-%m-%d') if latest_stock else None,
-            'latest_training': latest_metric.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_metric else None
+            'symbol': symbol,
+            'company_name': record.get('company_name') or symbol,
+            'series': record.get('series'),
+            'source': record.get('source', 'default'),
+            'stock_count': stock_counts.get(symbol, 0),
+            'sentiment_count': sentiment_counts.get(symbol, 0),
+            'latest_date': latest_stock.strftime('%Y-%m-%d') if latest_stock else None,
+            'latest_training': latest_metric.strftime('%Y-%m-%d %H:%M:%S') if latest_metric else None,
         })
 
     snapshot = {
         'stocks': symbols,
+        'default_symbol': catalog['default_symbol'],
         'total_stock': total_stock,
         'total_sentiment': total_sentiment,
         'total_metrics': total_metrics,
         'latest_stock_date': latest_stock_record.date.strftime('%Y-%m-%d') if latest_stock_record else None,
         'latest_training_date': latest_training_record.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_training_record else None,
         'stock_summary': stock_summary,
+        'stock_summary_preview': stock_summary[:12],
+        'stock_summary_remaining_count': max(0, len(stock_summary) - 12),
+        'symbol_source_label': catalog['source_label'],
+        'source_symbol_count': catalog['source_symbol_count'],
+        'has_uploaded_contracts': catalog['uploaded'],
+        'contract_filename': catalog.get('original_filename'),
+        'contract_uploaded_at': catalog.get('uploaded_at_display'),
+        'contract_source_url': catalog['contract_source_url'],
+        'extra_db_symbol_count': catalog['extra_db_symbol_count'],
     }
 
     if selected_symbol:
         snapshot['selected_symbol'] = selected_symbol
 
     return snapshot
-
-
-def has_admin_users():
-    """Return True when at least one admin user exists."""
-    return db.session.query(AdminUser.id).first() is not None
 
 
 def _safe_next_url(next_url):
@@ -102,63 +194,19 @@ def _safe_next_url(next_url):
     return None
 
 
-def _clear_admin_session():
-    """Clear all login-related session keys."""
-    session.pop('logged_in', None)
-    session.pop('admin_logged_in', None)
-    session.pop('admin_username', None)
-
-
-def get_current_admin_user():
-    """Fetch the logged-in admin user and invalidate stale sessions."""
-    username = session.get('admin_username')
-    if not username:
-        return None
-
-    admin_user = AdminUser.find_by_username(username)
-    if admin_user and admin_user.is_active:
-        return admin_user
-
-    _clear_admin_session()
-    return None
-
-
-def _set_admin_session(admin_user):
-    """Persist the authenticated admin user in session storage."""
-    admin_user.record_login()
-    db.session.commit()
-    session['logged_in'] = True
-    session['admin_logged_in'] = True
-    session['admin_username'] = admin_user.username
-
-
-def _validate_admin_form(username, password, confirm_password):
-    """Validate sign-up and create-user form fields."""
-    normalized_username = (username or '').strip()
-
-    if not normalized_username:
-        return None, 'Username is required.'
-    if len(normalized_username) < 3:
-        return None, 'Username must be at least 3 characters long.'
-    if not password:
-        return None, 'Password is required.'
-    if len(password) < 8:
-        return None, 'Password must be at least 8 characters long.'
-    if password != confirm_password:
-        return None, 'Password and confirm password must match.'
-    if AdminUser.find_by_username(normalized_username):
-        return None, 'That username is already in use.'
-
-    return normalized_username, None
+def _remove_file_if_exists(path):
+    """Delete a file when present and report whether it was removed."""
+    if path and os.path.exists(path):
+        os.remove(path)
+        return True
+    return False
 
 
 def admin_required(view_func):
     """Decorator to protect admin routes."""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
-        if not has_admin_users():
-            return redirect(url_for('admin_signup', next=request.path))
-        if get_current_admin_user() is None:
+        if not session.get('admin_logged_in'):
             return redirect(url_for('admin_login', next=request.path))
         return view_func(*args, **kwargs)
     return wrapper
@@ -177,15 +225,10 @@ def require_login():
     if request.endpoint == 'static':
         return None
 
-    if request.endpoint in {'admin_login', 'admin_signup'}:
+    if request.endpoint in {'admin_login'}:
         return None
 
-    if not has_admin_users():
-        if _is_api_request():
-            return jsonify({'error': 'Initial admin setup required'}), 503
-        return redirect(url_for('admin_signup', next=request.path))
-
-    if get_current_admin_user() is None:
+    if not session.get('logged_in'):
         if _is_api_request():
             return jsonify({'error': 'Authentication required'}), 401
         return redirect(url_for('admin_login', next=request.path))
@@ -203,9 +246,14 @@ def index():
 @app.route('/dashboard')
 def dashboard():
     """Main dashboard page"""
-    symbol = request.args.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
-    snapshot = get_system_snapshot()
-    return render_template('dashboard.html', symbol=symbol, stocks=snapshot['stocks'])
+    catalog = get_symbol_catalog_snapshot()
+    symbol = resolve_selected_symbol(
+        request.args.get('symbol'),
+        catalog['symbols'],
+        catalog['default_symbol'],
+    )
+    snapshot = get_system_snapshot(symbol, catalog)
+    return render_template('dashboard.html', symbol=symbol, **snapshot)
 
 
 @app.route('/about')
@@ -230,14 +278,37 @@ def coverage():
             'trained_at': record.training_date.strftime('%Y-%m-%d %H:%M:%S')
         }
 
-    metrics_by_symbol = {}
-    for sym in snapshot['stocks']:
-        latest_rf = ModelMetrics.query.filter_by(symbol=sym, model_type='RandomForest').order_by(ModelMetrics.training_date.desc()).first()
-        latest_lstm = ModelMetrics.query.filter_by(symbol=sym, model_type='LSTM').order_by(ModelMetrics.training_date.desc()).first()
-        metrics_by_symbol[sym] = {
-            'rf': metric_dict(latest_rf),
-            'lstm': metric_dict(latest_lstm)
-        }
+    metrics_by_symbol = {
+        sym: {'rf': None, 'lstm': None}
+        for sym in snapshot['stocks']
+    }
+    latest_metrics_subquery = (
+        db.session.query(
+            ModelMetrics.symbol.label('symbol'),
+            ModelMetrics.model_type.label('model_type'),
+            db.func.max(ModelMetrics.training_date).label('latest_training_date'),
+        )
+        .group_by(ModelMetrics.symbol, ModelMetrics.model_type)
+        .subquery()
+    )
+    latest_metrics = (
+        db.session.query(ModelMetrics)
+        .join(
+            latest_metrics_subquery,
+            (ModelMetrics.symbol == latest_metrics_subquery.c.symbol) &
+            (ModelMetrics.model_type == latest_metrics_subquery.c.model_type) &
+            (ModelMetrics.training_date == latest_metrics_subquery.c.latest_training_date),
+        )
+        .all()
+    )
+    for record in latest_metrics:
+        if record.symbol not in metrics_by_symbol:
+            continue
+
+        if record.model_type == 'RandomForest':
+            metrics_by_symbol[record.symbol]['rf'] = metric_dict(record)
+        elif record.model_type == 'LSTM':
+            metrics_by_symbol[record.symbol]['lstm'] = metric_dict(record)
 
     return render_template('coverage.html', metrics_by_symbol=metrics_by_symbol, **snapshot)
 
@@ -249,14 +320,43 @@ def support():
     return render_template('support.html', **snapshot)
 
 
+@app.route('/symbols/upload', methods=['GET', 'POST'])
+def symbol_upload():
+    """Upload and activate an NSE contract CSV for symbol selection."""
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        uploaded_file = request.files.get('contract_file')
+        if uploaded_file is None or not uploaded_file.filename:
+            error = 'Please choose the exchange CSV file to upload.'
+        else:
+            safe_filename = secure_filename(uploaded_file.filename) or 'uploaded_contracts.csv'
+            try:
+                upload_result = save_uploaded_contract(uploaded_file.read(), safe_filename)
+                success = (
+                    f"Uploaded {len(upload_result['records'])} symbols from "
+                    f"{upload_result['metadata']['original_filename']}."
+                )
+            except ValueError as exc:
+                error = str(exc)
+
+    catalog = get_symbol_catalog_snapshot()
+    snapshot = get_system_snapshot(catalog=catalog)
+    return render_template(
+        'symbol_upload.html',
+        error=error,
+        success=success,
+        contract_records=catalog['available_records'],
+        contract_record_count=len(catalog['available_records']),
+        **snapshot,
+    )
+
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     """Admin login page"""
-    if not has_admin_users():
-        next_url = _safe_next_url(request.args.get('next'))
-        return redirect(url_for('admin_signup', next=next_url))
-
-    if get_current_admin_user() is not None:
+    if session.get('logged_in'):
         next_url = _safe_next_url(request.args.get('next'))
         return redirect(next_url or url_for('admin_dashboard'))
 
@@ -264,10 +364,11 @@ def admin_login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        admin_user = AdminUser.find_by_username(username)
 
-        if admin_user and admin_user.is_active and admin_user.check_password(password):
-            _set_admin_session(admin_user)
+        if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
+            session['logged_in'] = True
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
             next_url = _safe_next_url(request.args.get('next'))
             return redirect(next_url or url_for('index'))
 
@@ -276,94 +377,13 @@ def admin_login():
     return render_template('admin_login.html', error=error)
 
 
-@app.route('/admin/signup', methods=['GET', 'POST'])
-def admin_signup():
-    """Create the first admin user through the web UI."""
-    next_url = _safe_next_url(request.args.get('next'))
-
-    if has_admin_users():
-        if get_current_admin_user() is not None:
-            return redirect(url_for('admin_create_user'))
-        return redirect(url_for('admin_login', next=next_url))
-
-    error = None
-    if request.method == 'POST':
-        username = request.form.get('username', '')
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-
-        normalized_username, error = _validate_admin_form(username, password, confirm_password)
-        if error is None:
-            admin_user = AdminUser(username=normalized_username, is_active=True)
-            admin_user.set_password(password)
-            db.session.add(admin_user)
-            db.session.commit()
-            _set_admin_session(admin_user)
-            return redirect(next_url or url_for('admin_dashboard'))
-
-    return render_template(
-        'admin_user_form.html',
-        page_title='Create First Admin',
-        heading='Create First Admin',
-        subtitle='Set up the first login for this project.',
-        submit_label='Create Account',
-        description='This one-time sign-up page appears only until the first admin account is created.',
-        error=error,
-        success=None,
-        admin_logged_in=False,
-        form_action=url_for('admin_signup', next=next_url),
-        back_url=None,
-        secondary_url=url_for('index'),
-        secondary_label='Back to Home',
-        users=[],
-    )
-
-
-@app.route('/admin/users/create', methods=['GET', 'POST'])
-@admin_required
-def admin_create_user():
-    """Create additional admin users from the web UI."""
-    error = None
-    success = None
-
-    if request.method == 'POST':
-        username = request.form.get('username', '')
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-
-        normalized_username, error = _validate_admin_form(username, password, confirm_password)
-        if error is None:
-            admin_user = AdminUser(username=normalized_username, is_active=True)
-            admin_user.set_password(password)
-            db.session.add(admin_user)
-            db.session.commit()
-            success = f"Admin user '{admin_user.username}' created successfully."
-
-    users = AdminUser.query.order_by(AdminUser.created_at.asc(), AdminUser.id.asc()).all()
-
-    return render_template(
-        'admin_user_form.html',
-        page_title='Create Admin User',
-        heading='Create Admin User',
-        subtitle='Add another account that can sign in to the admin panel.',
-        submit_label='Create User',
-        description='Passwords are stored as secure hashes in the database and are never shown again after creation.',
-        error=error,
-        success=success,
-        admin_logged_in=True,
-        form_action=url_for('admin_create_user'),
-        back_url=url_for('admin_dashboard'),
-        secondary_url=url_for('admin_logout'),
-        secondary_label='Logout',
-        users=users,
-    )
-
-
 @app.route('/admin/logout')
 @admin_required
 def admin_logout():
     """Admin logout"""
-    _clear_admin_session()
+    session.pop('logged_in', None)
+    session.pop('admin_logged_in', None)
+    session.pop('admin_username', None)
     return redirect(url_for('admin_login'))
 
 
@@ -371,10 +391,14 @@ def admin_logout():
 @admin_required
 def admin_dashboard():
     """Admin dashboard page"""
-    symbol = request.args.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
-    snapshot = get_system_snapshot()
+    catalog = get_symbol_catalog_snapshot()
+    symbol = resolve_selected_symbol(
+        request.args.get('symbol'),
+        catalog['symbols'],
+        catalog['default_symbol'],
+    )
+    snapshot = get_system_snapshot(symbol, catalog)
     stocks = snapshot['stocks']
-    admin_user_count = AdminUser.query.count()
 
     latest_overall_metrics = ModelMetrics.query.order_by(ModelMetrics.training_date.desc()).first()
     latest_rf = ModelMetrics.query.filter_by(
@@ -403,7 +427,6 @@ def admin_dashboard():
         stock_count=stock_count,
         sentiment_count=sentiment_count,
         metrics_count=metrics_count,
-        admin_user_count=admin_user_count,
         total_stock=snapshot['total_stock'],
         total_sentiment=snapshot['total_sentiment'],
         total_metrics=snapshot['total_metrics'],
@@ -423,7 +446,12 @@ def admin_dashboard():
 @admin_required
 def admin_clear_data():
     """Clear admin-selected data for a symbol"""
-    symbol = request.form.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
+    catalog = get_symbol_catalog_snapshot()
+    symbol = resolve_selected_symbol(
+        request.form.get('symbol'),
+        catalog['symbols'],
+        catalog['default_symbol'],
+    )
     action = request.form.get('action', '')
 
     if action not in {'stock', 'sentiment', 'metrics', 'all'}:
@@ -450,6 +478,46 @@ def admin_clear_data():
     return redirect(url_for('admin_dashboard', symbol=symbol, message=message))
 
 
+@app.route('/admin/data/reset-all', methods=['POST'])
+@admin_required
+def admin_reset_all_data():
+    """Clear uploaded contract data and all stored market/model data."""
+    try:
+        deleted_stock = StockData.query.delete(synchronize_session=False)
+        deleted_sentiment = SentimentData.query.delete(synchronize_session=False)
+        deleted_predictions = PredictionData.query.delete(synchronize_session=False)
+        deleted_metrics = ModelMetrics.query.delete(synchronize_session=False)
+        db.session.commit()
+
+        cleared_contract_files = clear_uploaded_contract()
+        removed_model_files = sum(
+            1
+            for path in (
+                Config.RF_MODEL_PATH,
+                Config.RF_MODEL_PATH.replace('.pkl', '_scaler.pkl'),
+                Config.LSTM_MODEL_PATH,
+                Config.LSTM_MODEL_PATH.replace('.h5', '_scaler.pkl'),
+            )
+            if _remove_file_if_exists(path)
+        )
+
+        global rf_model, lstm_model
+        rf_model = None
+        lstm_model = None
+
+        message = (
+            "System reset complete. "
+            f"Deleted {deleted_stock} stock rows, {deleted_sentiment} sentiment rows, "
+            f"{deleted_predictions} prediction rows, and {deleted_metrics} metric rows. "
+            f"Removed {len(cleared_contract_files)} contract file(s) and {removed_model_files} saved model file(s)."
+        )
+    except Exception as exc:
+        db.session.rollback()
+        message = f"System reset failed: {exc}"
+
+    return redirect(url_for('admin_dashboard', message=message))
+
+
 @app.route('/api/fetch_data', methods=['POST'])
 def fetch_data():
     """
@@ -457,7 +525,14 @@ def fetch_data():
     """
     try:
         data = request.get_json()
-        symbol = data.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
+        catalog = get_symbol_catalog_snapshot()
+        symbol = resolve_selected_symbol(
+            data.get('symbol'),
+            catalog['symbols'],
+            catalog['default_symbol'],
+        )
+        if not symbol:
+            return jsonify({'error': 'Upload the contract CSV and select a symbol first.'}), 400
         
         print(f"\nFetching data for {symbol}...")
         
@@ -479,12 +554,27 @@ def fetch_data():
             sentiment_df = sentiment_analyzer.analyze_news_dataframe(news_df)
         else:
             sentiment_df = None
+
+        stock_df = stock_df.copy()
+        stock_df['Date'] = pd.to_datetime(stock_df['Date'], errors='coerce').dt.normalize()
+        stock_df = stock_df.dropna(subset=['Date', 'Close']).sort_values('Date')
+        stock_duplicate_count = int(stock_df.duplicated(subset=['Date']).sum())
+        if stock_duplicate_count:
+            print(f"Dropping {stock_duplicate_count} duplicate stock rows before saving {symbol}")
+            stock_df = stock_df.drop_duplicates(subset=['Date'], keep='last')
+
+        if sentiment_df is not None and len(sentiment_df) > 0:
+            sentiment_df = sentiment_df.copy()
+            sentiment_df['date'] = pd.to_datetime(sentiment_df['date'], errors='coerce').dt.normalize()
+            sentiment_df = sentiment_df.dropna(subset=['date']).sort_values('date')
         
         # Save to database
         with app.app_context():
             # Clear existing data for this symbol
-            StockData.query.filter_by(symbol=symbol).delete()
-            SentimentData.query.filter_by(symbol=symbol).delete()
+            StockData.query.filter_by(symbol=symbol).delete(synchronize_session=False)
+            SentimentData.query.filter_by(symbol=symbol).delete(synchronize_session=False)
+            PredictionData.query.filter_by(symbol=symbol).delete(synchronize_session=False)
+            db.session.flush()
             
             # Save stock data
             for idx, row in stock_df.iterrows():
@@ -539,7 +629,14 @@ def train_models():
     
     try:
         data = request.get_json()
-        symbol = data.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
+        catalog = get_symbol_catalog_snapshot()
+        symbol = resolve_selected_symbol(
+            data.get('symbol'),
+            catalog['symbols'],
+            catalog['default_symbol'],
+        )
+        if not symbol:
+            return jsonify({'error': 'Upload the contract CSV and select a symbol first.'}), 400
         
         print(f"\nTraining models for {symbol}...")
         
@@ -660,7 +757,14 @@ def predict():
     
     try:
         data = request.get_json()
-        symbol = data.get('symbol', Config.DEFAULT_STOCK_SYMBOL)
+        catalog = get_symbol_catalog_snapshot()
+        symbol = resolve_selected_symbol(
+            data.get('symbol'),
+            catalog['symbols'],
+            catalog['default_symbol'],
+        )
+        if not symbol:
+            return jsonify({'error': 'Upload the contract CSV and select a symbol first.'}), 400
         
         # Load models if not in memory
         if rf_model is None:
@@ -835,9 +939,10 @@ def get_model_metrics(symbol):
 
 
 if __name__ == '__main__':
-    host = os.environ.get('HOST', '0.0.0.0')
-    port = int(os.environ.get('PORT', '5000'))
-    debug = os.environ.get('FLASK_DEBUG', '1').lower() in {'1', 'true', 'yes'}
-
+    # Create necessary directories
+    os.makedirs(Config.DATA_RAW_PATH, exist_ok=True)
+    os.makedirs(Config.DATA_PROCESSED_PATH, exist_ok=True)
+    os.makedirs(Config.MODELS_PATH, exist_ok=True)
+    
     # Run the app
-    app.run(debug=debug, host=host, port=port)
+    app.run(debug=True, host='0.0.0.0', port=5000)

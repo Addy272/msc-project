@@ -17,10 +17,14 @@
                     <a href="{{ url_for('index') }}" class="nav-link">Home</a>
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+                    <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
                     <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
-                    <a href="{{ url_for('admin_login') }}" class="nav-link">Admin</a>
+                    <a href="{{ url_for('dashboard', symbol=default_symbol) if default_symbol else url_for('symbol_upload') }}" class="nav-link">
+                        Dashboard
+                    </a>
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link">Admin Panel</a>
                 </div>
             </nav>
         </header>
@@ -51,6 +55,16 @@
                         <h3>Total Model Metrics</h3>
                         <p class="summary-value">{{ total_metrics }}</p>
                         <p class="summary-meta">Models: Random Forest &amp; LSTM</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Active Symbol Catalog</h3>
+                        <p class="summary-value">{{ source_symbol_count }}</p>
+                        <p class="summary-meta">
+                            {{ symbol_source_label }}
+                            {% if contract_filename %}
+                            | {{ contract_filename }}
+                            {% endif %}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -84,12 +98,15 @@
             <div class="stock-selection">
                 <h2>Select a Stock to Begin</h2>
                 <div class="stock-summary-grid">
-                    {% for item in stock_summary %}
+                    {% for item in stock_summary_preview %}
                     <div class="stock-summary-card">
                         <a href="{{ url_for('dashboard', symbol=item.symbol) }}" class="stock-button">
                             {{ item.symbol }}
                         </a>
                         <div class="stock-summary-meta">
+                            {% if item.company_name and item.company_name != item.symbol %}
+                            <div>Company: {{ item.company_name }}</div>
+                            {% endif %}
                             <div>Stock Records: {{ item.stock_count }}</div>
                             <div>Sentiment Records: {{ item.sentiment_count }}</div>
                             <div>Latest Price Date: {{ item.latest_date or 'No data' }}</div>
@@ -98,6 +115,12 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% if stock_summary_remaining_count > 0 %}
+                <p class="section-note">
+                    Showing the first {{ stock_summary_preview|length }} symbols out of {{ stock_summary|length }}.
+                    Open Upload Symbols or Coverage to browse the full list.
+                </p>
+                {% endif %}
             </div>
 
             <div class="info-section">

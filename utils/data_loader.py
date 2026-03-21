@@ -15,11 +15,13 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import sys
+from urllib.parse import quote as url_quote
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import Config
+from utils.symbol_catalog import get_company_name_for_symbol, get_market_data_symbol
 
 
 class StockDataLoader:
@@ -33,6 +35,7 @@ class StockDataLoader:
             symbol (str): Stock ticker symbol (e.g., 'AAPL')
         """
         self.symbol = symbol or Config.DEFAULT_STOCK_SYMBOL
+        self.market_symbol = get_market_data_symbol(self.symbol)
         
     def fetch_historical_data(self, start_date=None, end_date=None):
         """
@@ -48,27 +51,17 @@ class StockDataLoader:
         start_date = start_date or Config.START_DATE
         end_date = end_date or Config.END_DATE
 
-        print(f"Fetching data for {self.symbol} from {start_date} to {end_date}...")
+        print(f"Fetching data for {self.symbol} ({self.market_symbol}) from {start_date} to {end_date}...")
 
         try:
             # Download data using yfinance first
-            stock = yf.Ticker(self.symbol)
+            stock = yf.Ticker(self.market_symbol)
             df = stock.history(start=start_date, end=end_date)
 
             if df is None or df.empty:
                 raise ValueError("yfinance returned no data")
 
-            # Reset index to make Date a column
-            df.reset_index(inplace=True)
-
-            # Standardize columns
-            if 'Adj Close' in df.columns:
-                df.rename(columns={'Adj Close': 'Adj_Close'}, inplace=True)
-            else:
-                df['Adj_Close'] = df['Close']
-
-            expected = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Adj_Close']
-            df = df[[col for col in expected if col in df.columns]]
+            df = self._finalize_history_dataframe(df)
 
             print(f"Successfully fetched {len(df)} records for {self.symbol}")
             return df
@@ -99,7 +92,8 @@ class StockDataLoader:
             period1 = int(start_dt.timestamp())
             period2 = int(end_dt.timestamp())
 
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{self.symbol}"
+            yahoo_symbol = url_quote(self.market_symbol, safe='')
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}"
             params = {
                 "interval": "1d",
                 "period1": period1,
@@ -111,6 +105,10 @@ class StockDataLoader:
             response.raise_for_status()
 
             payload = response.json()
+            chart_error = payload.get("chart", {}).get("error")
+            if chart_error:
+                raise ValueError(chart_error.get("description") or "Yahoo chart API returned an error")
+
             result = payload.get("chart", {}).get("result")
             if not result:
                 return None
@@ -118,7 +116,7 @@ class StockDataLoader:
             result = result[0]
             timestamps = result.get("timestamp", [])
             indicators = result.get("indicators", {})
-            quote = indicators.get("quote", [{}])[0]
+            quote_data = indicators.get("quote", [{}])[0]
             adjclose = indicators.get("adjclose", [{}])[0].get("adjclose")
 
             if not timestamps:
@@ -132,6 +130,10 @@ class StockDataLoader:
                 response.raise_for_status()
 
                 payload = response.json()
+                chart_error = payload.get("chart", {}).get("error")
+                if chart_error:
+                    raise ValueError(chart_error.get("description") or "Yahoo chart API returned an error")
+
                 result = payload.get("chart", {}).get("result")
                 if not result:
                     return None
@@ -139,7 +141,7 @@ class StockDataLoader:
                 result = result[0]
                 timestamps = result.get("timestamp", [])
                 indicators = result.get("indicators", {})
-                quote = indicators.get("quote", [{}])[0]
+                quote_data = indicators.get("quote", [{}])[0]
                 adjclose = indicators.get("adjclose", [{}])[0].get("adjclose")
 
             if not timestamps:
@@ -147,11 +149,11 @@ class StockDataLoader:
 
             df = pd.DataFrame({
                 "Date": pd.to_datetime(timestamps, unit="s"),
-                "Open": quote.get("open"),
-                "High": quote.get("high"),
-                "Low": quote.get("low"),
-                "Close": quote.get("close"),
-                "Volume": quote.get("volume")
+                "Open": quote_data.get("open"),
+                "High": quote_data.get("high"),
+                "Low": quote_data.get("low"),
+                "Close": quote_data.get("close"),
+                "Volume": quote_data.get("volume")
             })
 
             if adjclose:
@@ -159,12 +161,52 @@ class StockDataLoader:
             else:
                 df["Adj_Close"] = df["Close"]
 
-            df = df.dropna(subset=["Close"])
+            df = self._finalize_history_dataframe(df)
             return df
 
         except Exception as e:
             print(f"Fallback Yahoo chart error: {str(e)}")
             return None
+
+    def _finalize_history_dataframe(self, df):
+        """Normalize Yahoo history output and keep one row per trading date."""
+        if df is None or df.empty:
+            return df
+
+        df = df.copy()
+
+        if 'Date' not in df.columns:
+            df.reset_index(inplace=True)
+
+        if 'Date' not in df.columns:
+            raise ValueError("Historical data is missing the 'Date' column.")
+
+        if 'Adj Close' in df.columns:
+            df.rename(columns={'Adj Close': 'Adj_Close'}, inplace=True)
+        elif 'Adj_Close' not in df.columns and 'Close' in df.columns:
+            df['Adj_Close'] = df['Close']
+
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        try:
+            df['Date'] = df['Date'].dt.tz_localize(None)
+        except (TypeError, AttributeError):
+            pass
+        df['Date'] = df['Date'].dt.normalize()
+
+        expected = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Adj_Close']
+        df = df[[col for col in expected if col in df.columns]]
+        df = df.dropna(subset=['Date', 'Close'])
+        df = df.sort_values('Date')
+
+        duplicate_count = int(df.duplicated(subset=['Date']).sum())
+        if duplicate_count:
+            print(f"Dropping {duplicate_count} duplicate history rows for {self.symbol}")
+            df = df.drop_duplicates(subset=['Date'], keep='last')
+
+        if 'Volume' in df.columns:
+            df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce').fillna(0)
+
+        return df.reset_index(drop=True)
     
     def save_to_csv(self, df, filename=None):
         """
@@ -376,20 +418,7 @@ def get_company_name(symbol):
     Returns:
         str: Company name
     """
-    company_mapping = {
-        'AAPL': 'Apple',
-        'GOOGL': 'Google',
-        'MSFT': 'Microsoft',
-        'AMZN': 'Amazon',
-        'TSLA': 'Tesla',
-        'META': 'Meta',
-        'NVDA': 'NVIDIA',
-        'JPM': 'JPMorgan',
-        'V': 'Visa',
-        'WMT': 'Walmart'
-    }
-    
-    return company_mapping.get(symbol, symbol)
+    return get_company_name_for_symbol(symbol)
 
 
 if __name__ == "__main__":
