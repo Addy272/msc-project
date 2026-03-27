@@ -7,18 +7,24 @@ Main application file that handles routes and API endpoints
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, has_app_context
 from functools import wraps
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
-import sys
 
 # Import project modules
 from config import Config
-from database.models import db, init_db, StockData, SentimentData, PredictionData, ModelMetrics
+from database.models import (
+    db,
+    init_db,
+    AdminUser,
+    StockData,
+    SentimentData,
+    PredictionData,
+    ModelMetrics,
+    seed_admin_user,
+)
 from utils.data_loader import StockDataLoader, NewsDataLoader, get_company_name
 from utils.feature_engineering import FeatureEngineer
 from utils.symbol_catalog import clear_uploaded_contract, get_symbol_catalog, save_uploaded_contract
@@ -169,7 +175,6 @@ def get_system_snapshot(selected_symbol=None, catalog=None):
         'latest_training_date': latest_training_record.training_date.strftime('%Y-%m-%d %H:%M:%S') if latest_training_record else None,
         'stock_summary': stock_summary,
         'stock_summary_preview': stock_summary[:12],
-        'stock_summary_remaining_count': max(0, len(stock_summary) - 12),
         'symbol_source_label': catalog['source_label'],
         'source_symbol_count': catalog['source_symbol_count'],
         'has_uploaded_contracts': catalog['uploaded'],
@@ -200,6 +205,13 @@ def _remove_file_if_exists(path):
         os.remove(path)
         return True
     return False
+
+
+def _start_admin_session(username):
+    """Persist the authenticated admin session."""
+    session['logged_in'] = True
+    session['admin_logged_in'] = True
+    session['admin_username'] = username
 
 
 def admin_required(view_func):
@@ -313,13 +325,6 @@ def coverage():
     return render_template('coverage.html', metrics_by_symbol=metrics_by_symbol, **snapshot)
 
 
-@app.route('/support')
-def support():
-    """Support page with guidance and quick links"""
-    snapshot = get_system_snapshot()
-    return render_template('support.html', **snapshot)
-
-
 @app.route('/symbols/upload', methods=['GET', 'POST'])
 def symbol_upload():
     """Upload and activate an NSE contract CSV for symbol selection."""
@@ -364,17 +369,78 @@ def admin_login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        admin_user = AdminUser.find_by_username(username)
 
-        if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
-            session['logged_in'] = True
-            session['admin_logged_in'] = True
-            session['admin_username'] = username
+        if admin_user is not None:
+            if not admin_user.is_active:
+                error = 'This admin account is inactive.'
+            elif admin_user.check_password(password):
+                admin_user.record_login()
+                db.session.commit()
+                _start_admin_session(admin_user.username)
+                next_url = _safe_next_url(request.args.get('next'))
+                return redirect(next_url or url_for('index'))
+        elif AdminUser.query.count() == 0 and (
+            username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD
+        ):
+            bootstrap_user = seed_admin_user(username, password, sync_existing=True)
+            if bootstrap_user is not None:
+                bootstrap_user.record_login()
+                db.session.commit()
+
+            _start_admin_session(username)
             next_url = _safe_next_url(request.args.get('next'))
             return redirect(next_url or url_for('index'))
 
-        error = 'Invalid username or password.'
+        if error is None:
+            error = 'Invalid username or password.'
 
     return render_template('admin_login.html', error=error)
+
+
+@app.route('/admin/users/create', methods=['GET', 'POST'])
+@admin_required
+def admin_create_user():
+    """Create a new admin user from the dashboard."""
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not username:
+            error = 'Username is required.'
+        elif not password:
+            error = 'Password is required.'
+        elif password != confirm_password:
+            error = 'Passwords do not match.'
+        elif AdminUser.find_by_username(username) is not None:
+            error = 'An admin user with that username already exists.'
+        else:
+            admin_user = AdminUser(username=username, is_active=True)
+            admin_user.set_password(password)
+            db.session.add(admin_user)
+            db.session.commit()
+            success = f"Admin user '{admin_user.username}' created successfully."
+
+    users = AdminUser.query.order_by(AdminUser.created_at.desc(), AdminUser.username.asc()).all()
+    return render_template(
+        'admin_user_form.html',
+        page_title='Create Admin User',
+        heading='Add Admin User',
+        subtitle='Create and review admin accounts',
+        form_action=url_for('admin_create_user'),
+        submit_label='Add User',
+        back_url=url_for('admin_dashboard'),
+        secondary_url=None,
+        secondary_label=None,
+        admin_logged_in=bool(session.get('admin_logged_in')),
+        error=error,
+        success=success,
+        users=users,
+    )
 
 
 @app.route('/admin/logout')
@@ -411,6 +477,7 @@ def admin_dashboard():
     stock_count = StockData.query.filter_by(symbol=symbol).count()
     sentiment_count = SentimentData.query.filter_by(symbol=symbol).count()
     metrics_count = ModelMetrics.query.filter_by(symbol=symbol).count()
+    admin_user_count = AdminUser.query.count()
 
     news_key_set = bool(Config.NEWS_API_KEY and Config.NEWS_API_KEY != '658ab30b6eed4f879c8409f469d43689')
     rf_model_exists = os.path.exists(Config.RF_MODEL_PATH)
@@ -424,6 +491,7 @@ def admin_dashboard():
         'admin_dashboard.html',
         symbol=symbol,
         stocks=stocks,
+        admin_user_count=admin_user_count,
         stock_count=stock_count,
         sentiment_count=sentiment_count,
         metrics_count=metrics_count,

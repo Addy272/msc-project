@@ -17,7 +17,6 @@
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
                     <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('admin_dashboard', symbol=symbol) }}" class="nav-link">Admin Panel</a>
@@ -31,40 +30,24 @@
         </header>
 
         <main>
-            <!-- Control Panel -->
             <div class="control-panel">
                 <h2>Control Panel</h2>
-                <p class="section-note">
-                    Active catalog: {{ symbol_source_label }}{% if contract_filename %} | {{ contract_filename }}{% endif %}
-                </p>
-                <div class="button-group">
-                    <button onclick="fetchData()" class="btn btn-primary">
-                        📥 Fetch Latest Data
-                    </button>
-                    <button onclick="trainModels()" class="btn btn-success">
-                        🎓 Train Models
-                    </button>
-                    <button onclick="makePrediction()" class="btn btn-info">
-                        🔮 Make Prediction
-                    </button>
-                </div>
-                {% if session.get('admin_logged_in') and symbol %}
-                <p class="section-note">
-                    Clear tools for {{ symbol }} are available here too.
-                </p>
-                <div class="button-group">
+                <div class="dashboard-actions">
+                    <button onclick="fetchData()" class="btn btn-primary">Fetch Latest Data</button>
+                    <button onclick="trainModels()" class="btn btn-success">Train Models</button>
+                    <button onclick="makePrediction()" class="btn btn-info">Make Prediction</button>
+                    {% if session.get('admin_logged_in') and symbol %}
                     <form method="post" action="{{ url_for('admin_clear_data') }}" onsubmit="return confirm('Clear all stock, sentiment, and metrics data for {{ symbol }}?');">
                         <input type="hidden" name="symbol" value="{{ symbol }}">
                         <input type="hidden" name="action" value="all">
                         <button type="submit" class="btn btn-danger">Clear {{ symbol }} Data</button>
                     </form>
                     <a href="{{ url_for('admin_dashboard', symbol=symbol) }}" class="btn btn-ghost">Open Full Admin Controls</a>
+                    {% endif %}
                 </div>
-                {% endif %}
                 <div id="statusMessage" class="status-message"></div>
             </div>
 
-            <!-- Prediction Results -->
             <div class="prediction-section" id="predictionSection" style="display:none;">
                 <h2>Prediction Results</h2>
                 <div class="prediction-grid">
@@ -90,7 +73,6 @@
                 </div>
             </div>
 
-            <!-- Model Performance -->
             <div class="metrics-section" id="metricsSection" style="display:none;">
                 <h2>Model Performance Metrics</h2>
                 <div class="metrics-grid">
@@ -106,7 +88,7 @@
                                 <td id="rf-mae">--</td>
                             </tr>
                             <tr>
-                                <td>R² Score:</td>
+                                <td>R2 Score:</td>
                                 <td id="rf-r2">--</td>
                             </tr>
                         </table>
@@ -123,7 +105,7 @@
                                 <td id="lstm-mae">--</td>
                             </tr>
                             <tr>
-                                <td>R² Score:</td>
+                                <td>R2 Score:</td>
                                 <td id="lstm-r2">--</td>
                             </tr>
                         </table>
@@ -131,10 +113,9 @@
                 </div>
             </div>
 
-            <!-- Visualizations -->
             <div class="charts-section">
                 <h2>Visualizations</h2>
-                
+
                 <div class="chart-container">
                     <h3>Stock Price History</h3>
                     <div id="priceChart"></div>
@@ -151,7 +132,6 @@
                 </div>
             </div>
 
-            <!-- Recent News -->
             <div class="news-section" id="newsSection">
                 <h2>Recent Financial News & Sentiment</h2>
                 <div id="newsList"></div>
@@ -166,13 +146,12 @@
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script>
         const CURRENT_SYMBOL = "{{ symbol }}";
-        
+
         function changeStock() {
             const symbol = document.getElementById('stockSelector').value;
             window.location.href = `/dashboard?symbol=${symbol}`;
         }
 
-        // Load initial data
         window.addEventListener('load', function() {
             loadStockData();
             loadSentimentData();

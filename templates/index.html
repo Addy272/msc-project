@@ -18,7 +18,6 @@
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
                     <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('dashboard', symbol=default_symbol) if default_symbol else url_for('symbol_upload') }}" class="nav-link">
@@ -115,12 +114,6 @@
                     </div>
                     {% endfor %}
                 </div>
-                {% if stock_summary_remaining_count > 0 %}
-                <p class="section-note">
-                    Showing the first {{ stock_summary_preview|length }} symbols out of {{ stock_summary|length }}.
-                    Open Upload Symbols or Coverage to browse the full list.
-                </p>
-                {% endif %}
             </div>
 
             <div class="info-section">

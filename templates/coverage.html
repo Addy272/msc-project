@@ -17,7 +17,6 @@
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link active">Coverage</a>
                     <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('dashboard', symbol=default_symbol) }}" class="nav-link">Dashboard</a>
@@ -29,12 +28,7 @@
         <main>
             <section class="hero">
                 <div>
-                    <p class="eyebrow">System health</p>
                     <h2>Data coverage across {{ stocks|length }} symbols</h2>
-                    <p class="lede">
-                        Totals update in real time as you ingest news, retrain models, and grow the dataset.
-                        Use this view to spot where freshness or training is missing.
-                    </p>
                     <div class="stat-row">
                         <div class="stat-chip">
                             <span class="label">Stock rows</span>
@@ -58,7 +52,6 @@
             <section class="panel">
                 <div class="panel-head">
                     <div>
-                        <p class="eyebrow">Symbol coverage</p>
                         <h3>Data depth and model readiness</h3>
                     </div>
                     <a class="btn btn-primary" href="{{ url_for('dashboard', symbol=default_symbol) }}">Open dashboard</a>
@@ -114,22 +107,19 @@
 
             <section class="split">
                 <div class="card-lite">
-                    <p class="eyebrow">Operational tips</p>
-                    <h3>Keep models fresh</h3>
+                    <h3>Coverage Snapshot</h3>
                     <ul class="checklist">
-                        <li>Fetch latest news before each training run.</li>
-                        <li>Monitor RMSE drift across symbols after re-training.</li>
-                        <li>Use ensemble signal on dashboard for quick validation.</li>
+                        <li>{{ total_stock }} stock rows tracked across the active catalog.</li>
+                        <li>{{ total_sentiment }} sentiment rows stored for model input.</li>
+                        <li>{{ total_metrics }} metric entries recorded for recent training runs.</li>
                     </ul>
                 </div>
                 <div class="card-lite">
-                    <p class="eyebrow">Admin shortcuts</p>
-                    <h3>Quick actions</h3>
+                    <h3>Open Views</h3>
                     <div class="button-group">
                         <a class="btn btn-primary" href="{{ url_for('admin_dashboard') }}">Go to Admin</a>
                         <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=default_symbol) }}">Dashboard</a>
                     </div>
-                    <p class="muted">Use the Admin panel to clear data, retrain, and validate predictions.</p>
                 </div>
             </section>
         </main>

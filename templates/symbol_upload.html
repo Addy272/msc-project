@@ -10,14 +10,13 @@
     <div class="container">
         <header>
             <h1>NSE Contract CSV Upload</h1>
-            <p class="subtitle">Upload today's exchange contract file and use its symbols across the app.</p>
+            <p class="subtitle">Manage the active NSE symbol catalog.</p>
             <nav>
                 <div class="nav-left">
                     <a href="{{ url_for('index') }}" class="nav-link">Home</a>
                     <a href="{{ url_for('about') }}" class="nav-link">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
                     <a href="{{ url_for('symbol_upload') }}" class="nav-link active">Upload Symbols</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('dashboard', symbol=default_symbol) }}" class="nav-link">Dashboard</a>
@@ -36,12 +35,7 @@
 
             <section class="hero">
                 <div>
-                    <p class="eyebrow">Exchange symbol management</p>
-                    <h2>Replace the hardcoded demo list with your daily contract file</h2>
-                    <p class="lede">
-                        Upload the NSE contract CSV that contains the <strong>SYMBOL</strong> column.
-                        The app will save that file, use its symbols in dropdowns and pages, and fetch market data using the NSE Yahoo ticker format automatically.
-                    </p>
+                    <h2>Active NSE symbol list</h2>
                     <div class="button-group">
                         <a class="btn btn-primary" href="{{ contract_source_url }}" target="_blank" rel="noreferrer">Open NSE CSV Source</a>
                         <a class="btn btn-ghost" href="{{ url_for('dashboard', symbol=default_symbol) }}">Open Dashboard</a>
@@ -55,13 +49,12 @@
                     </div>
                     <div class="stat-chip">
                         <span class="label">Current default symbol</span>
-                        <span class="value">{{ default_symbol }}</span>
-                        <span class="note">Used when no symbol is selected</span>
+                        <span class="value">{{ default_symbol or 'Not set' }}</span>
                     </div>
                     <div class="stat-chip">
                         <span class="label">Last upload</span>
                         <span class="value">{{ contract_uploaded_at or 'Not uploaded yet' }}</span>
-                        <span class="note">{{ contract_filename or 'Upload a contract CSV to start using symbols' }}</span>
+                        <span class="note">{{ contract_filename or 'No file uploaded' }}</span>
                     </div>
                 </div>
             </section>
@@ -70,14 +63,9 @@
                 <section class="panel">
                     <div class="panel-head">
                         <div>
-                            <p class="eyebrow">Upload file</p>
                             <h3>Activate a new contract list</h3>
                         </div>
                     </div>
-                    <p class="section-note">
-                        Expected format: CSV from the exchange with columns such as <strong>SYMBOL</strong>,
-                        <strong>NAME OF COMPANY</strong>, and <strong>SERIES</strong>.
-                    </p>
                     <form method="post" enctype="multipart/form-data" class="upload-form">
                         <label for="contractFile">Contract CSV file</label>
                         <input id="contractFile" name="contract_file" type="file" accept=".csv,text/csv" required>
@@ -88,8 +76,7 @@
                 <section class="panel">
                     <div class="panel-head">
                         <div>
-                            <p class="eyebrow">Current catalog</p>
-                            <h3>What the app is using right now</h3>
+                            <h3>Current catalog</h3>
                         </div>
                     </div>
                     <div class="upload-meta">
@@ -116,8 +103,7 @@
             <section class="panel">
                 <div class="panel-head">
                     <div>
-                        <p class="eyebrow">Search symbols</p>
-                        <h3>Browse the active list</h3>
+                        <h3>Browse symbols</h3>
                     </div>
                 </div>
                 <div class="upload-toolbar">
@@ -127,7 +113,7 @@
                         type="search"
                         placeholder="Search by symbol or company name"
                     >
-                    <p class="section-note">Visible rows: <span id="visibleCount">{{ contract_record_count }}</span></p>
+                    <span class="muted">Rows: <span id="visibleCount">{{ contract_record_count }}</span></span>
                 </div>
                 <div class="table-scroll">
                     <table class="coverage-table catalog-table" id="catalogTable">

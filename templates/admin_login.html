@@ -6,46 +6,59 @@
     <title>Admin Login - Stock Price Forecasting System</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Admin Login</h1>
-            <p class="subtitle">Stock Price Forecasting System</p>
-            <nav>
-                <div class="nav-left">
-                    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
-                    <a href="{{ url_for('about') }}" class="nav-link">About</a>
-                    <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
-                </div>
-            </nav>
-        </header>
-
-        <main>
-            <div class="admin-login-card">
-                <h2>Sign In</h2>
-
-                {% if error %}
-                <div class="status-message show error">{{ error }}</div>
-                {% endif %}
-
-                <form method="post" class="admin-form">
-                    <label for="username">Username</label>
-                    <input id="username" name="username" type="text" required autocomplete="username">
-
-                    <label for="password">Password</label>
-                    <input id="password" name="password" type="password" required autocomplete="current-password">
-
-                    <button type="submit" class="btn btn-primary">Sign In</button>
-                </form>
-
-                <p class="admin-hint">Admin accounts are stored in the database. If this is the first setup and no account exists yet, the app will redirect you to the sign-up page automatically.</p>
+<body class="auth-page">
+    <main class="auth-shell">
+        <section class="auth-intro">
+            <div>
+                <p class="auth-kicker">Stock Price Forecasting System</p>
+                <h1>Admin Login</h1>
+                <p class="auth-copy">
+                    Secure access to the dashboard, model operations, and live project data.
+                </p>
             </div>
-        </main>
 
-        <footer>
-            <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
-        </footer>
-    </div>
+            <nav class="auth-links">
+                <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+                <a href="{{ url_for('about') }}" class="nav-link">About</a>
+                <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
+            </nav>
+        </section>
+
+        <section class="admin-login-card auth-card">
+            <h2>Sign In</h2>
+
+            {% if error %}
+            <div class="status-message show error">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" class="admin-form">
+                <label for="username">Username</label>
+                <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    autocomplete="username"
+                    autofocus
+                    value="{{ request.form.get('username', '') }}"
+                >
+
+                <label for="password">Password</label>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                >
+
+                <button type="submit" class="btn btn-primary">Sign In</button>
+            </form>
+        </section>
+    </main>
+
+    <footer class="auth-footer">
+        <p>&copy; 2024 Stock Price Forecasting System | MSc IT Project</p>
+    </footer>
 </body>
 </html>

@@ -17,7 +17,6 @@
                     <a href="{{ url_for('about') }}" class="nav-link active">About</a>
                     <a href="{{ url_for('coverage') }}" class="nav-link">Coverage</a>
                     <a href="{{ url_for('symbol_upload') }}" class="nav-link">Upload Symbols</a>
-                    <a href="{{ url_for('support') }}" class="nav-link">Support</a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('dashboard', symbol=default_symbol) }}" class="nav-link">Dashboard</a>
@@ -75,7 +74,7 @@
                         <li><span class="dot"></span><div><strong>Ingest</strong><p>Fetches prices and news for tracked symbols.</p></div></li>
                         <li><span class="dot"></span><div><strong>Engineer</strong><p>Builds indicators and merges sentiment streams.</p></div></li>
                         <li><span class="dot"></span><div><strong>Train</strong><p>Random Forest and LSTM models log metrics every run.</p></div></li>
-                        <li><span class="dot"></span><div><strong>Predict</strong><p>Signals are surfaced as Buy / Sell / Hold guidance.</p></div></li>
+                        <li><span class="dot"></span><div><strong>Predict</strong><p>Signals are surfaced as Buy / Sell / Hold outputs.</p></div></li>
                     </ol>
                 </div>
             </section>
@@ -104,12 +103,6 @@
                     </div>
                     {% endfor %}
                 </div>
-                {% if stock_summary_remaining_count > 0 %}
-                <p class="section-note">
-                    Showing the first {{ stock_summary_preview|length }} symbols out of {{ stock_summary|length }}.
-                    Use Coverage or Upload Symbols for the full catalog.
-                </p>
-                {% endif %}
             </section>
         </main>
 
